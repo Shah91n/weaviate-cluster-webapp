@@ -1,16 +1,24 @@
 import time
 import json
 import pandas as pd
-from typing import Tuple
+from typing import Optional, Tuple
 from weaviate import Client
 from weaviate.classes.query import MetadataQuery
 
 # Keyword search function
 # This function performs a keyword search on a specified collection in Weaviate.
-def keyword_search(client: Client, collection: str, query: str, limit: int = 3) -> Tuple[bool, str, pd.DataFrame, float]:
+def keyword_search(
+    client: Client,
+    collection: str,
+    query: str,
+    limit: int = 3,
+    tenant_name: Optional[str] = None,
+) -> Tuple[bool, str, pd.DataFrame, float]:
 	try:
 		# Get collection
 		coll = client.collections.get(collection)
+		if tenant_name:
+			coll = coll.with_tenant(tenant_name)
 
 		# Measure performance
 		start_time = time.time() * 1000 # Convert to milliseconds
@@ -42,6 +50,9 @@ def keyword_search(client: Client, collection: str, query: str, limit: int = 3) 
 				"Creation Time": obj.metadata.creation_time if hasattr(obj.metadata, 'creation_time') else 'N/A',
 				"Last Update Time": obj.metadata.last_update_time if hasattr(obj.metadata, 'last_update_time') else 'N/A'
 			}
+
+			if tenant_name:
+				result_dict["Tenant"] = tenant_name
 
 			# Add properties
 			for key, value in obj.properties.items():
