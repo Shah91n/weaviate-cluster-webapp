@@ -3,6 +3,7 @@ from utils.search.hybrid import hybrid_search, hybrid_search_with_multiple_vecto
 from utils.search.vector import vector_search, vector_search_with_multiple_vectors, parse_vector_input
 from utils.search.keyword import keyword_search
 from utils.cluster.collection import list_collections
+from utils.collections.read_all_objects import get_tenant_names
 from utils.page_config import set_custom_page_config
 from utils.sidebar.navigation import navigate
 from utils.sidebar.helper import update_side_bar_labels
@@ -23,6 +24,8 @@ def initialize_session_state():
 		st.session_state.search_type = "Hybrid"
 	if 'selected_target_vector' not in st.session_state:
 		st.session_state.selected_target_vector = None
+	if 'search_selected_tenant' not in st.session_state:
+		st.session_state.search_selected_tenant = None
 
 # Display the search interface with parameter
 def display_search_interface():
@@ -35,6 +38,22 @@ def display_search_interface():
 		index=collections.index(st.session_state.selected_collection) if st.session_state.selected_collection in collections else 0,
 		help="Choose a collection to search in"
 	)
+
+	# Tenant selection (only for MT collections)
+	tenant_names = get_tenant_names(st.session_state.client, selected_collection)
+	selected_tenant = None
+	if tenant_names:
+		tenant_names = sorted(tenant_names)
+		selected_tenant_index = tenant_names.index(st.session_state.search_selected_tenant) if st.session_state.search_selected_tenant in tenant_names else 0
+		selected_tenant = st.selectbox(
+			"Select Tenant",
+			tenant_names,
+			index=selected_tenant_index,
+			help="Choose a tenant to scope your search",
+			key="search_tenant_select"
+		)
+	else:
+		st.session_state.search_selected_tenant = None
 
 	# Get the collection and check if the collection has named vectors
 	collection = st.session_state.client.collections.get(selected_collection)
@@ -93,11 +112,16 @@ def display_search_interface():
 	search_button = st.button("Search")
 
 	if search_button:
+		if tenant_names and not selected_tenant:
+			st.error("Please select a tenant for this collection")
+			return
+
 		# Update session state
 		st.session_state.selected_collection = selected_collection
 		st.session_state.selected_target_vector = target_vector
 		st.session_state.search_query = query
 		st.session_state.search_type = search_type
+		st.session_state.search_selected_tenant = selected_tenant
 		if search_type == "Hybrid":
 			st.session_state.search_alpha = alpha
 		st.session_state.search_limit = limit
@@ -111,7 +135,8 @@ def display_search_interface():
 					target_vector,
 					query,
 					alpha,
-					limit
+					limit,
+					tenant_name=selected_tenant
 				)
 			else:
 				success, message, df, time_taken = hybrid_search(
@@ -119,8 +144,9 @@ def display_search_interface():
 					selected_collection,
 					query,
 					alpha,
-					limit
-			)
+					limit,
+					tenant_name=selected_tenant
+				)
 		elif search_type == "Vector":
 			try:
 				vector_list = parse_vector_input(query)
@@ -131,14 +157,16 @@ def display_search_interface():
 						selected_collection,
 						target_vector,
 						vector_list,
-						limit
+						limit,
+						tenant_name=selected_tenant
 					)
 				else:
 					success, message, df, time_taken = vector_search(
 						st.session_state.client,
 						selected_collection,
 						vector_list,
-						limit
+						limit,
+						tenant_name=selected_tenant
 					)
 			except ValueError as e:
 				st.error(f"Invalid vector format: {e}")
@@ -148,7 +176,8 @@ def display_search_interface():
 				st.session_state.client,
 				selected_collection,
 				query,
-				limit
+				limit,
+				tenant_name=selected_tenant
 			)
 
 		# Display results

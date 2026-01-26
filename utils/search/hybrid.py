@@ -2,17 +2,26 @@ import time
 import re
 import json
 import pandas as pd
-from typing import Tuple
+from typing import Optional, Tuple
 from weaviate import Client
 from weaviate.classes.query import MetadataQuery
 
 # Hybrid search function
 # This function performs a hybrid search on a specified collection in Weaviate.
-def hybrid_search(client: Client, collection: str, query: str, alpha: float = 0.5, limit: int = 3) -> Tuple[bool, str, pd.DataFrame, float]:
+def hybrid_search(
+    client: Client,
+    collection: str,
+    query: str,
+    alpha: float = 0.5,
+    limit: int = 3,
+    tenant_name: Optional[str] = None,
+) -> Tuple[bool, str, pd.DataFrame, float]:
 	print("hybrid_search() called")
 	try:
 		# Get collection
 		coll = client.collections.get(collection)
+		if tenant_name:
+			coll = coll.with_tenant(tenant_name)
 
 		# Measure performance
 		start_time = time.time() * 1000 # Convert to milliseconds
@@ -51,6 +60,9 @@ def hybrid_search(client: Client, collection: str, query: str, alpha: float = 0.
 				"Last Update Time": obj.metadata.last_update_time if hasattr(obj.metadata, 'last_update_time') else 'N/A'
 			}
 
+			if tenant_name:
+				result_dict["Tenant"] = tenant_name
+
 			# Add properties
 			for key, value in obj.properties.items():
 				if isinstance(value, (dict, list)):
@@ -67,11 +79,21 @@ def hybrid_search(client: Client, collection: str, query: str, alpha: float = 0.
 	except Exception as e:
 		return False, f"Error performing hybrid search: {str(e)}", pd.DataFrame(), 0.0
 
-def hybrid_search_with_multiple_vectors(client: Client, collection: str, targetvector: str, query: str, alpha: float = 0.5, limit: int = 3) -> Tuple[bool, str, pd.DataFrame, float]:
+def hybrid_search_with_multiple_vectors(
+	client: Client,
+	collection: str,
+	targetvector: str,
+	query: str,
+	alpha: float = 0.5,
+	limit: int = 3,
+	tenant_name: Optional[str] = None,
+) -> Tuple[bool, str, pd.DataFrame, float]:
 	print("hybrid_search_with_multiple_vectors() called")
 	try:
 		# Get collection
 		coll = client.collections.get(collection)
+		if tenant_name:
+			coll = coll.with_tenant(tenant_name)
 
 		# Measure performance
 		start_time = time.time() * 1000 # Convert to milliseconds
@@ -110,6 +132,9 @@ def hybrid_search_with_multiple_vectors(client: Client, collection: str, targetv
 				"Creation Time": obj.metadata.creation_time if hasattr(obj.metadata, 'creation_time') else 'N/A',
 				"Last Update Time": obj.metadata.last_update_time if hasattr(obj.metadata, 'last_update_time') else 'N/A'
 			}
+
+			if tenant_name:
+				result_dict["Tenant"] = tenant_name
 
 			# Add properties
 			for key, value in obj.properties.items():
