@@ -1,6 +1,6 @@
 import streamlit as st
 from utils.connection.weaviate_client import initialize_client
-from utils.cluster.cluster_operations_handlers import action_check_shard_consistency, action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_read_repairs, action_diagnose
+from utils.cluster.cluster_operations_handlers import action_check_shard_consistency, action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_diagnose
 from utils.sidebar.navigation import navigate
 from utils.connection.weaviate_connection import close_weaviate_client
 from utils.sidebar.helper import update_side_bar_labels, clear_session_state
@@ -72,8 +72,6 @@ if "openai_key" not in st.session_state:
     st.session_state.openai_key = ""
 if "cohere_key" not in st.session_state:
     st.session_state.cohere_key = ""
-if "jinaai_key" not in st.session_state:
-    st.session_state.jinaai_key = ""
 if "huggingface_key" not in st.session_state:
     st.session_state.huggingface_key = ""
     
@@ -197,7 +195,6 @@ if not st.session_state.client_ready:
     st.sidebar.markdown("Add API keys for Model provider integrations (optional):")
     st.sidebar.text_input("OpenAI API Key", type="password", key="openai_key")
     st.sidebar.text_input("Cohere API Key", type="password", key="cohere_key")
-    st.sidebar.text_input("JinaAI API Key", type="password", key="jinaai_key")
     st.sidebar.text_input("HuggingFace API Key", type="password", key="huggingface_key")
 
     # --------------------------------------------------------------------------
@@ -213,8 +210,6 @@ if not st.session_state.client_ready:
             vectorizer_integration_keys["X-OpenAI-Api-Key"] = st.session_state.openai_key
         if st.session_state.cohere_key:
             vectorizer_integration_keys["X-Cohere-Api-Key"] = st.session_state.cohere_key
-        if st.session_state.jinaai_key:
-            vectorizer_integration_keys["X-JinaAI-Api-Key"] = st.session_state.jinaai_key
         if st.session_state.huggingface_key:
             vectorizer_integration_keys["X-HuggingFace-Api-Key"] = st.session_state.huggingface_key
 
@@ -231,7 +226,7 @@ if not st.session_state.client_ready:
                 st.session_state.active_endpoint = f"http://localhost:{st.session_state.local_http_port}"
                 st.session_state.active_api_key = st.session_state.local_api_key
                 # Persist the API keys in active_ keys
-                for key in ["openai_key", "cohere_key", "jinaai_key", "huggingface_key"]:
+                for key in ["openai_key", "cohere_key", "huggingface_key"]:
                     st.session_state[f"active_{key}"] = st.session_state.get(key, "")
                 st.rerun()
 
@@ -254,7 +249,7 @@ if not st.session_state.client_ready:
                 st.session_state.active_endpoint = f"{protocol}://{st.session_state.custom_http_host}:{st.session_state.custom_http_port}"
                 st.session_state.active_api_key = st.session_state.custom_api_key
                 # Persist the API keys in active_ keys
-                for key in ["openai_key", "cohere_key", "jinaai_key", "huggingface_key"]:
+                for key in ["openai_key", "cohere_key", "huggingface_key"]:
                     st.session_state[f"active_{key}"] = st.session_state.get(key, "")
                 st.rerun()
             else:
@@ -277,7 +272,7 @@ if not st.session_state.client_ready:
                     st.session_state.active_endpoint = cloud_endpoint
                     st.session_state.active_api_key = st.session_state.cloud_api_key
                     # Persist the API keys in active_ keys
-                    for key in ["openai_key", "cohere_key", "jinaai_key", "huggingface_key"]:
+                    for key in ["openai_key", "cohere_key", "huggingface_key"]:
                         st.session_state[f"active_{key}"] = st.session_state.get(key, "")
                     st.rerun()
                 else:
@@ -318,8 +313,7 @@ button_actions = {
     "statistics": lambda: action_statistics(st.session_state.active_endpoint, st.session_state.active_api_key),
     "metadata": lambda: action_metadata(st.session_state.active_endpoint, st.session_state.active_api_key),
     "check_shard_consistency": action_check_shard_consistency,
-    "read_repairs": lambda: action_read_repairs(st.session_state.active_endpoint, st.session_state.active_api_key),
-    "diagnose": lambda: action_diagnose(st.session_state.active_endpoint, st.session_state.active_api_key),
+    "diagnose": lambda: action_diagnose(st.session_state.active_endpoint, st.session_state.active_api_key)
 }
 
 with col1:
@@ -349,12 +343,7 @@ with col6:
 with col7:
     if st.button("Check Shard Consistency For Repairs", width="stretch"):
         st.session_state["active_button"] = "check_shard_consistency"
-
 with col8:
-    if st.button("Read Repair", width="stretch"):
-        st.session_state["active_button"] = "read_repairs"
-
-with col9:
     if st.button("Diagnose", width="stretch"):
         st.session_state["active_button"] = "diagnose"
 

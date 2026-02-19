@@ -12,7 +12,7 @@ import re
 # Supported vectorizers
 def get_supported_vectorizers() -> List[str]:
 	print("get_supported_vectorizers() called")
-	return ["text2vec_weaviate", "text2vec_openai", "text2vec_huggingface", "text2vec_cohere", "text2vec_jinaai", "BYOV"]
+	return ["text2vec_weaviate", "text2vec_openai", "text2vec_huggingface", "text2vec_cohere", "BYOV"]
 
 # Validate file format
 def validate_file_format(file_content: str, file_type: str) -> tuple[bool, str, Optional[List[Dict[str, Any]]]]:
@@ -50,8 +50,6 @@ def check_vectorizer_keys(vectorizer: str) -> tuple[bool, str]:
 		return False, "OpenAI API key is required. Please reconnect with the key or select BYOV."
 	elif vectorizer == "text2vec_cohere" and not st.session_state.get("active_cohere_key"):
 		return False, "Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV."
-	elif vectorizer == "text2vec_jinaai" and not st.session_state.get("active_jinaai_key"):
-		return False, "JinaAI API key is required. Please reconnect with the key or select BYOV."
 	elif vectorizer == "text2vec_huggingface" and not st.session_state.get("active_huggingface_key"):
 		return False, "HuggingFace API key is required. Please reconnect with the key or select BYOV."
 	return True, ""
@@ -78,8 +76,6 @@ def create_collection(client: Client, collection_name: str, vectorizer: str) -> 
 			vector_config = Configure.Vectors.text2vec_huggingface()
 		elif vectorizer == "text2vec_cohere":
 			vector_config = Configure.Vectors.text2vec_cohere()
-		elif vectorizer == "text2vec_jinaai":
-			vector_config = Configure.Vectors.text2vec_jinaai()
 		elif vectorizer == "BYOV":
 			vector_config = Configure.Vectors.self_provided()
 		# Create collection

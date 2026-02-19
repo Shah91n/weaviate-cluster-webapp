@@ -37,8 +37,6 @@ def create_collection_form():
 			st.warning("⚠️ OpenAI API key is required. Please reconnect with the key or select BYOV.")
 		elif selected_vectorizer == "text2vec_cohere" and not st.session_state.get("active_cohere_key"):
 			st.warning("⚠️ Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV.")
-		elif selected_vectorizer == "text2vec_jinaai" and not st.session_state.get("active_jinaai_key"):
-			st.warning("⚠️ JinaAI API key is required. Please reconnect with the key or select BYOV.")
 		elif selected_vectorizer == "text2vec_huggingface" and not st.session_state.get("active_huggingface_key"):
 			st.warning("⚠️ HuggingFace API key is required. Please reconnect with the key or select BYOV.")
 

@@ -94,7 +94,7 @@ def update_hnsw_vector_index(client, collection_name, dynamic_ef_factor, dynamic
 		if vector_cache_max_objects is not None:
 			hnsw_params['vector_cache_max_objects'] = vector_cache_max_objects
 		if hnsw_params:
-			collection.config.update(vectorizer_config=Reconfigure.VectorIndex.hnsw(**hnsw_params))
+			collection.config.update(vector_config=Reconfigure.VectorIndex.hnsw(**hnsw_params))
 		return True
 	except Exception as e:
 		raise Exception(f"Failed to update HNSW vector index: {str(e)}")
@@ -126,7 +126,7 @@ def update_pq_quantizer(client, collection_name, pq_enabled, pq_centroids, pq_se
 				pq_kwargs['encoder_distribution'] = getattr(PQEncoderDistribution, pq_encoder_distribution)
 			else:
 				raise Exception(f"Invalid PQEncoderDistribution: {pq_encoder_distribution}")
-		collection.config.update(vectorizer_config=Reconfigure.VectorIndex.hnsw(quantizer=Reconfigure.VectorIndex.Quantizer.pq(**pq_kwargs)))
+		collection.config.update(vector_config=Reconfigure.VectorIndex.hnsw(quantizer=Reconfigure.VectorIndex.Quantizer.pq(**pq_kwargs)))
 		return True
 	except Exception as e:
 		raise Exception(f"Failed to update PQ quantizer: {str(e)}")
@@ -159,8 +159,8 @@ def display_config_as_table(config):
 		deletion_strategy_val = getattr(repl, 'deletion_strategy', None)
 		flat_config['Deletion Strategy'] = deletion_strategy_val.name if deletion_strategy_val is not None else None
 		flat_config['Async Enabled'] = getattr(repl, 'async_enabled', None)
-	if hasattr(config, 'vectorizer_config') and config.vectorizer_config is not None:
-		vector = config.vectorizer_config
+	if hasattr(config, 'vector_config') and config.vector_config is not None:
+		vector = config.vector_config
 		vector_index_type = getattr(vector, 'type', None)
 		flat_config['Vector Index Type'] = vector_index_type
 		flat_config['Vector Cache Max Objects'] = getattr(vector, 'vector_cache_max_objects', None)
