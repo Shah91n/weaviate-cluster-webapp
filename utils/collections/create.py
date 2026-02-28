@@ -1,22 +1,24 @@
 import csv
 import json
 import pandas as pd
+import logging
 from typing import List, Dict, Any, Optional
-from weaviate import Client
 from weaviate.util import generate_uuid5
 from weaviate.classes.config import Configure
-from utils.cluster.cluster_operations import get_schema
+from utils.cluster.collection import get_schema
+from utils.connection.weaviate_connection_manager import get_weaviate_client
 import streamlit as st
 import re
 
-# Supported vectorizers
+logger = logging.getLogger(__name__)
+
 def get_supported_vectorizers() -> List[str]:
-	print("get_supported_vectorizers() called")
+	logger.info("get_supported_vectorizers() called")
 	return ["text2vec_weaviate", "text2vec_openai", "text2vec_huggingface", "text2vec_cohere", "BYOV"]
 
 # Validate file format
 def validate_file_format(file_content: str, file_type: str) -> tuple[bool, str, Optional[List[Dict[str, Any]]]]:
-	print("validate_file_format() called")
+	logger.info(f"validate_file_format() called with type: {file_type}")
 	try:
 		if file_type == "csv":
 			# Try to parse CSV
@@ -41,11 +43,12 @@ def validate_file_format(file_content: str, file_type: str) -> tuple[bool, str, 
 		else:
 			return False, f"Unsupported file type: {file_type}", None
 	except Exception as e:
+		logger.error(f"Error parsing file: {str(e)}")
 		return False, f"Error parsing file: {str(e)}", None
 
 # Check if required API keys are present for the selected vectorizer
 def check_vectorizer_keys(vectorizer: str) -> tuple[bool, str]:
-	print(f"check_vectorizer_keys() called with vectorizer: {vectorizer}")
+	logger.info(f"check_vectorizer_keys() called with vectorizer: {vectorizer}")
 	if vectorizer == "text2vec_openai" and not st.session_state.get("active_openai_key"):
 		return False, "OpenAI API key is required. Please reconnect with the key or select BYOV."
 	elif vectorizer == "text2vec_cohere" and not st.session_state.get("active_cohere_key"):
@@ -55,9 +58,10 @@ def check_vectorizer_keys(vectorizer: str) -> tuple[bool, str]:
 	return True, ""
 
 # Create a new collection
-def create_collection(client: Client, collection_name: str, vectorizer: str) -> tuple[bool, str]:
-	print(f"create_collection() called with collection_name: {collection_name}, vectorizer: {vectorizer}")
+def create_collection(collection_name: str, vectorizer: str) -> tuple[bool, str]:
+	logger.info(f"create_collection() called with collection_name: {collection_name}, vectorizer: {vectorizer}")
 	try:
+		client = get_weaviate_client()
 		# Check if collection already exists
 		if client.collections.exists(collection_name):
 			return False, f"Collection '{collection_name}' already exists"
@@ -86,11 +90,12 @@ def create_collection(client: Client, collection_name: str, vectorizer: str) -> 
 		)
 		return True, f"Collection '{collection_name}' created successfully"
 	except Exception as e:
+		logger.error(f"Error creating collection: {str(e)}")
 		return False, f"Error creating collection: {str(e)}"
 
 # Sanitize keys for Weaviate
 def sanitize_keys(data_item: Dict[str, Any]) -> Dict[str, Any]:
-	print("sanitize_keys() called")
+	logger.info("sanitize_keys() called")
 	sanitized_item = {}
 	for key, value in data_item.items():
 		# Replace spaces and invalid characters with underscores
@@ -102,8 +107,9 @@ def sanitize_keys(data_item: Dict[str, Any]) -> Dict[str, Any]:
 	return sanitized_item
 
 # Batch data. Reduce/Increase Batch Size as per your requirement. You can also pass concurrent_requests in batch.fixed_size(batch_size=1000, concurrent_requests=4)
-def batch_upload(client: Client, collection_name: str, data: List[Dict[str, Any]], batch_size: int = 1000):
-	print(f"batch_upload() called")
+def batch_upload(collection_name: str, data: List[Dict[str, Any]], batch_size: int = 1000):
+	logger.info(f"batch_upload() called for collection: {collection_name}")
+	client = get_weaviate_client()
 	if not client.collections.exists(collection_name):
 		yield False, f"Collection '{collection_name}' does not exist", None
 		return
@@ -126,36 +132,56 @@ def batch_upload(client: Client, collection_name: str, data: List[Dict[str, Any]
 				yield False, f"Failed to queue object {i}/{total_objects}: {str(e)}", None
 
 # Get the newely created collection
-def get_collection_info(client: Client, collection_name: str) -> tuple[bool, str, Optional[Dict[str, Any]]]:
-	print(f"get_collection_info() called for collection: {collection_name}")
+def get_collection_info(collection_name: str) -> tuple[bool, str, Optional[Dict[str, Any]]]:
+	logger.info(f"get_collection_info() called for collection: {collection_name}")
 	try:
+		client = get_weaviate_client()
 		if not client.collections.exists(collection_name):
 			return False, f"Collection '{collection_name}' does not exist", None
 
-		collection = client.collections.get(collection_name)
+		collection = client.collections.use(collection_name)
 		aggregate_result = collection.aggregate.over_all()
 		# Get schema information using the existing get_schema function
-		schema = get_schema(st.session_state.client)
-		collection_schema = next((c for c in schema.get("classes", []) if c.get("class") == collection_name), None)
+		schema = get_schema()
+		collection_schema = schema.get(collection_name) if isinstance(schema, dict) else None
+
+		properties = []
+		vectorizer = "none"
+		if collection_schema is not None:
+			if hasattr(collection_schema, "properties") and collection_schema.properties:
+				properties = [
+					{
+						"name": prop.name,
+						"dataType": str(prop.data_type),
+						"description": prop.description
+					}
+					for prop in collection_schema.properties
+				]
+			if hasattr(collection_schema, "vectorizer") and collection_schema.vectorizer:
+				vectorizer = collection_schema.vectorizer
+			elif hasattr(collection_schema, "vector_config") and collection_schema.vector_config:
+				vectorizer = "named_vectors"
 
 		info = {
 			"name": collection_name,
-			"object_count": aggregate_result.total_count if hasattr(aggregate_result, 'total_count') else 0,
-			"properties": collection_schema.get("properties", []) if collection_schema else [],
-			"vectorizer": collection_schema.get("vectorizer", "none") if collection_schema else "none"
+			"object_count": aggregate_result.total_count if hasattr(aggregate_result, "total_count") else 0,
+			"properties": properties,
+			"vectorizer": vectorizer
 		}
 		return True, "Collection info retrieved successfully", info
 	except Exception as e:
+		logger.error(f"Error getting collection info: {str(e)}")
 		return False, f"Error getting collection info: {str(e)}", None
 
 # Get the first 100 objects from the collection as check up
-def get_collection_objects(client: Client, collection_name: str, limit: int = 100) -> tuple[bool, str, Optional[pd.DataFrame]]:
-	print(f"get_collection_objects() called")
+def get_collection_objects(collection_name: str, limit: int = 100) -> tuple[bool, str, Optional[pd.DataFrame]]:
+	logger.info(f"get_collection_objects() called for collection: {collection_name}")
 	try:
+		client = get_weaviate_client()
 		if not client.collections.exists(collection_name):
 			return False, f"Collection '{collection_name}' does not exist", None
 
-		collection = client.collections.get(collection_name)
+		collection = client.collections.use(collection_name)
 		objects = []
 		count = 0
 

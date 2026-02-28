@@ -1,15 +1,20 @@
 import streamlit as st
+import logging
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Get tenants from a collection.
-def get_tenant_details(client, collection):
-	print(f"get_tenant_details() called for collection: {collection}")
-	col = client.collections.get(collection)
+def get_tenant_details(collection):
+	logger.info(f"get_tenant_details() called for collection: {collection}")
+	client = get_weaviate_client()
+	col = client.collections.use(collection)
 	tenants = col.tenants.get()
 	return tenants
 
 # This function aggregates the tenant states and counts the number of tenants in each state.
 def aggregate_tenant_states(tenants):
-	print(f"aggregate_tenant_states() called")
+	logger.info(f"aggregate_tenant_states() called")
 	tenant_states = {}
 	for tenant_id, tenant in tenants.items():
 		state = tenant.activityStatusInternal.name

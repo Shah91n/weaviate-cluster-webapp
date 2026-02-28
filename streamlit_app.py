@@ -1,8 +1,8 @@
 import streamlit as st
-from utils.connection.weaviate_client import initialize_client
-from utils.cluster.cluster_operations_handlers import action_check_shard_consistency, action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_diagnose
+from utils.connection.weaviate_client import initialize_weaviate_connection, disconnect_weaviate
+from utils.cluster.cluster_operations_handlers import action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_diagnose
 from utils.sidebar.navigation import navigate
-from utils.connection.weaviate_connection import close_weaviate_client
+from utils.connection.weaviate_connection_manager import get_weaviate_manager
 from utils.sidebar.helper import update_side_bar_labels, clear_session_state
 from utils.page_config import set_custom_page_config
 import time
@@ -202,8 +202,6 @@ if not st.session_state.client_ready:
     # --------------------------------------------------------------------------
     if st.sidebar.button("Connect", width="stretch", type="secondary"):
         
-        close_weaviate_client()
-
         # Vectorizers Integration API Keys
         vectorizer_integration_keys = {}
         if st.session_state.openai_key:
@@ -214,7 +212,7 @@ if not st.session_state.client_ready:
             vectorizer_integration_keys["X-HuggingFace-Api-Key"] = st.session_state.huggingface_key
 
         if st.session_state.use_local:
-            if initialize_client(
+            if initialize_weaviate_connection(
                 use_local=True,
                 http_port_endpoint=st.session_state.local_http_port,
                 grpc_port_endpoint=st.session_state.local_grpc_port,
@@ -222,18 +220,14 @@ if not st.session_state.client_ready:
                 vectorizer_integration_keys=vectorizer_integration_keys
             ):
                 st.sidebar.success("Local connection successful!")
-                # Set active connection info
                 st.session_state.active_endpoint = f"http://localhost:{st.session_state.local_http_port}"
                 st.session_state.active_api_key = st.session_state.local_api_key
-                # Persist the API keys in active_ keys
-                for key in ["openai_key", "cohere_key", "huggingface_key"]:
-                    st.session_state[f"active_{key}"] = st.session_state.get(key, "")
                 st.rerun()
-
             else:
                 st.sidebar.error("Connection failed!")
+
         elif st.session_state.use_custom:
-            if initialize_client(
+            if initialize_weaviate_connection(
                 use_custom=True,
                 http_host_endpoint=st.session_state.custom_http_host,
                 http_port_endpoint=st.session_state.custom_http_port,
@@ -244,13 +238,9 @@ if not st.session_state.client_ready:
                 vectorizer_integration_keys=vectorizer_integration_keys
             ):
                 st.sidebar.success("Custom Connection successful!")
-                # Set active connection info
                 protocol = "https" if st.session_state.custom_secure else "http"
                 st.session_state.active_endpoint = f"{protocol}://{st.session_state.custom_http_host}:{st.session_state.custom_http_port}"
                 st.session_state.active_api_key = st.session_state.custom_api_key
-                # Persist the API keys in active_ keys
-                for key in ["openai_key", "cohere_key", "huggingface_key"]:
-                    st.session_state[f"active_{key}"] = st.session_state.get(key, "")
                 st.rerun()
             else:
                 st.sidebar.error("Connection failed!")
@@ -262,18 +252,14 @@ if not st.session_state.client_ready:
             if not cloud_endpoint or not st.session_state.cloud_api_key:
                 st.sidebar.error("Please insert the cluster endpoint and API key!")
             else:
-                if initialize_client(
+                if initialize_weaviate_connection(
                     cluster_endpoint=cloud_endpoint,
                     cluster_api_key=st.session_state.cloud_api_key,
                     vectorizer_integration_keys=vectorizer_integration_keys
                 ):
                     st.sidebar.success("Cloud Connection successful!")
-                    # Set active connection info
                     st.session_state.active_endpoint = cloud_endpoint
                     st.session_state.active_api_key = st.session_state.cloud_api_key
-                    # Persist the API keys in active_ keys
-                    for key in ["openai_key", "cohere_key", "huggingface_key"]:
-                        st.session_state[f"active_{key}"] = st.session_state.get(key, "")
                     st.rerun()
                 else:
                     st.sidebar.error("Connection failed!")
@@ -281,11 +267,8 @@ if not st.session_state.client_ready:
 else:
     if st.sidebar.button("Disconnect", width="stretch", type="primary"):
         st.toast('Session, states and cache cleared! Weaviate client disconnected successfully!', icon='🔴')
-        time.sleep(1)
-        if st.session_state.get("client_ready"):
-            message = close_weaviate_client()
-            clear_session_state()
-            # print("DEBUG session_state (On Disconnect):", dict(st.session_state)) # uncomment during development to debug session state
+        disconnect_weaviate()
+        st.rerun()
     st.sidebar.info("Disconnect Button does clear all session states and cache, and disconnect the Weaviate client to server if connected.")
 
 # Essential run for the first time
@@ -312,7 +295,6 @@ button_actions = {
     "collections_configuration": lambda: action_collections_configuration(st.session_state.active_endpoint, st.session_state.active_api_key),
     "statistics": lambda: action_statistics(st.session_state.active_endpoint, st.session_state.active_api_key),
     "metadata": lambda: action_metadata(st.session_state.active_endpoint, st.session_state.active_api_key),
-    "check_shard_consistency": action_check_shard_consistency,
     "diagnose": lambda: action_diagnose(st.session_state.active_endpoint, st.session_state.active_api_key)
 }
 
@@ -341,9 +323,6 @@ with col6:
         st.session_state["active_button"] = "metadata"
 
 with col7:
-    if st.button("Check Shard Consistency For Repairs", width="stretch"):
-        st.session_state["active_button"] = "check_shard_consistency"
-with col8:
     if st.button("Diagnose", width="stretch"):
         st.session_state["active_button"] = "diagnose"
 

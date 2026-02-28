@@ -2,6 +2,11 @@ import requests
 import pandas as pd
 from collections import defaultdict
 import streamlit as st
+import logging
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
+
 
 # Diagnose schema configuration
 def diagnose_schema(cluster_url, api_key):
@@ -149,21 +154,34 @@ def diagnose_schema(cluster_url, api_key):
         return {"error": f"Failed to fetch schema for diagnostics: {e}"}
 
 # Get shards information
-def get_shards_info(client):
-    print("get_shards_info() called")
-    node_info = client.cluster.nodes(output="verbose")
-    return node_info
+def get_shards_info():
+    logger.info("get_shards_info() called")
+    try:
+        client = get_weaviate_client()
+        node_info = client.cluster.nodes(output="verbose")
+        return node_info
+    except Exception as e:
+        logger.error(f"Error getting shards info: {e}")
+        return None
 
 # Process shards data from node information
 def process_shards_data(node_info):
-    print("process_shards_data() called")
+    logger.info("process_shards_data() called")
     node_data = []
     shard_data = []
     collection_shard_counts = []
     readonly_shards = []
 
+    if not node_info:
+        return {
+            "node_data": pd.DataFrame(),
+            "shard_data": pd.DataFrame(), 
+            "collection_shard_data": pd.DataFrame(),
+            "readonly_shards": pd.DataFrame()
+        }
+
     for node in node_info:
-        print(f"Processing node: {node.name}")
+        logger.debug(f"Processing node: {node.name}")
         
         # Node-level data
         node_data.append({
@@ -216,12 +234,12 @@ def process_shards_data(node_info):
 
 # Display shards information
 def display_shards_table(processed_data):
-    print("display_shards_table() called")
+    logger.info("display_shards_table() called")
     return processed_data["node_data"], processed_data["shard_data"]
 
 # Check consistency of shard object counts across nodes. Returns a DataFrame of inconsistencies, or None if consistent.
 def check_shard_consistency(node_info):
-    print("check_shard_consistency() called")
+    logger.info("check_shard_consistency() called")
     shard_data = defaultdict(list)
     for node in node_info:
         # node.shards is a list of shards for this node
@@ -247,31 +265,10 @@ def check_shard_consistency(node_info):
         return df_inconsistent_shards
 
     return None
-
-# Get cluster Schema
-def get_schema(cluster_url, api_key):
-    print("get_schema() called with cluster_url:", cluster_url)
-    try:
-        url = f"{cluster_url}/v1/schema"
-        headers = {"Authorization": f"Bearer {api_key}"}
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return response.json() 
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Failed to fetch cluster Schema: {e}"}
     
-# Get cluster Schema
-def get_schema(client):
-    print("get_schema() called")
-    try:
-        response = client.collections.list_all(simple=False)
-        return response 
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Failed to fetch cluster Schema: {e}"}
-
 # Get cluster statistics
 def fetch_cluster_statistics(cluster_url, api_key):
-    print("fetch_cluster_statistics() called with cluster_url:", cluster_url)
+    logger.info(f"fetch_cluster_statistics() called with cluster_url: {cluster_url}")
     try:
         url = f"{cluster_url}/v1/cluster/statistics"
         headers = {"Authorization": f"Bearer {api_key}"}
@@ -280,11 +277,12 @@ def fetch_cluster_statistics(cluster_url, api_key):
 
         return response.json() 
     except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching cluster statistics: {e}")
         return {"error": f"Failed to fetch cluster statistics: {e}"}
 
 # Process cluster statistics data
 def process_statistics(stats):
-    print("process_statistics() called")
+    logger.info("process_statistics() called")
     if "statistics" not in stats:
         return {"error": "Invalid statistics data received."}
 
@@ -359,9 +357,10 @@ def process_statistics(stats):
 
 # Get cluster metadata
 def get_metadata():
-    print("get_metadata() called")
+    logger.info("get_metadata() called")
     try:
-        metadata = st.session_state.client.get_meta()
+        client = get_weaviate_client()
+        metadata = client.get_meta()
 
         # Process general metadata (excluding modules)
         general_metadata = {
@@ -399,5 +398,6 @@ def get_metadata():
         }
 
     except Exception as e:
+        logger.error(f"Error fetching cluster metadata: {e}")
         return {"error": f"Failed to fetch cluster metadata: {e}"}
     

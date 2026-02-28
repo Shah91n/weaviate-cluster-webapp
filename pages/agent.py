@@ -21,10 +21,10 @@ def initialize_session_state():
 
 def display_agent_ui():
     # Fetch collections fresh each render
-    collections = list_collections(st.session_state.client)
+    collections = list_collections()
 
     if isinstance(collections, dict):  # error scenario
-        st.error(collections.get('error', 'Error fetching collections'))
+        st.error(collections.use('error', 'Error fetching collections'))
         return
 
     if not collections:
@@ -88,7 +88,6 @@ def display_agent_ui():
         try:
             with st.spinner('Querying agent...'):
                 response = run_query_agent(
-                    client=st.session_state.client,
                     collections=selected,
                     question=question.strip(),
                     system_prompt=system_prompt.strip() if system_prompt.strip() else None,

@@ -2,18 +2,21 @@ import streamlit as st
 import io
 import contextlib
 import re
+import logging
 from typing import List, Optional, Any
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Utilities for working with the QueryAgent (installed via weaviate-client[agents]).
 # Provides: run_query_agent(), render_response() and helpers for formatting output.
 
-def run_query_agent(client, collections: List[str], question: str, system_prompt: Optional[str] = None,
+def run_query_agent(collections: List[str], question: str, system_prompt: Optional[str] = None,
                     agents_host: Optional[str] = None, timeout: Optional[int] = 60):
     """Run a QueryAgent ask() call and return the response object.
 
     Parameters
     ----------
-    client : Weaviate client instance (already connected)
     collections : list[str]
         Collections to include in the query.
     question : str
@@ -25,11 +28,14 @@ def run_query_agent(client, collections: List[str], question: str, system_prompt
     timeout : int | None
         Request timeout in seconds.
     """
+    logger.info(f"run_query_agent() called with collections: {collections}")
     try:
         from weaviate.agents.query import QueryAgent  # type: ignore
     except ImportError:
+        logger.error("weaviate-client[agents] extra is not installed")
         raise RuntimeError("weaviate-client[agents] extra is not installed. Please install requirements.")
 
+    client = get_weaviate_client()
     agent = QueryAgent(
         client=client,
         collections=collections,

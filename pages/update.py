@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 from datetime import datetime, date
-from utils.objects.update_object import get_object_in_collection, display_object_as_table, find_object_in_collection_on_nodes, get_object_in_tenant, find_object_in_tenant_on_nodes, update_object_properties
+from utils.objects.update_object import get_object_in_collection, display_object_as_table, get_object_in_tenant, update_object_properties
 from utils.collections.update_collection_config import get_collection_config, update_description_and_inverted_index, update_multi_tenancy_and_replication, update_hnsw_vector_index, update_pq_quantizer
 from utils.sidebar.navigation import navigate
 from utils.sidebar.helper import update_side_bar_labels
@@ -11,7 +11,6 @@ from weaviate.classes.config import PQEncoderType, PQEncoderDistribution, Vector
 
 # Function to map schema properties to their types
 def build_type_map_from_schema(schema):
-	print(f"build_type_map_from_schema called")
 	type_map = {}
 	for prop in schema.get('properties', []):
 		name = prop.get('name')
@@ -38,7 +37,6 @@ def build_type_map_from_schema(schema):
 
 # Function to parse values based on their type
 def parse_value_by_type(value, type_name):
-	print(f"parse_value_by_type called")
 	if type_name in ('text', 'string', 'uuid', 'geoCoordinates', 'phoneNumber', 'blob'):
 		return str(value)
 	elif type_name == 'boolean':
@@ -129,11 +127,7 @@ def get_object_details():
 	if with_tenant:
 		tenant_name = st.text_input("Tenant Name")
 
-	col1, col2 = st.columns(2)
-	with col1:
-		fetch_object_clicked = st.button("Fetch The Object", width="stretch")
-	with col2:
-		check_node_clicked = st.button("Check the Object on the Nodes (APIs)", width="stretch")
+	fetch_object_clicked = st.button("Fetch The Object", width="stretch")
 
 	# Initialize session state for edit mode and object data
 	if 'edit_mode' not in st.session_state:
@@ -168,9 +162,9 @@ def get_object_details():
 		try:
 			# Fetch and display object
 			if with_tenant and tenant_name:
-				data_object = get_object_in_tenant(st.session_state.client, collection_name, object_uuid, tenant_name)
+				data_object = get_object_in_tenant(collection_name, object_uuid, tenant_name)
 			else:
-				data_object = get_object_in_collection(st.session_state.client, collection_name, object_uuid)
+				data_object = get_object_in_collection(collection_name, object_uuid)
 
 			if data_object:
 				st.session_state.current_object = data_object
@@ -277,17 +271,13 @@ def get_object_details():
 						parsed_properties[key] = parse_value_by_type(value, type_name)
 					# Update the object
 					if with_tenant and tenant_name:
-						update_object_properties(
-							st.session_state.client,
-							collection_name,
+						update_object_properties(collection_name,
 							object_uuid,
 							parsed_properties,
 							tenant_name
 						)
 					else:
-						update_object_properties(
-							st.session_state.client,
-							collection_name,
+						update_object_properties(collection_name,
 							object_uuid,
 							parsed_properties
 						)
@@ -295,9 +285,9 @@ def get_object_details():
 					st.session_state.edit_mode = False
 					# Refresh the object display
 					if with_tenant and tenant_name:
-						data_object = get_object_in_tenant(st.session_state.client, collection_name, object_uuid, tenant_name)
+						data_object = get_object_in_tenant(collection_name, object_uuid, tenant_name)
 					else:
-						data_object = get_object_in_collection(st.session_state.client, collection_name, object_uuid)
+						data_object = get_object_in_collection(collection_name, object_uuid)
 					st.session_state.current_object = data_object
 					st.session_state.object_display = display_object_as_table(data_object)
 					st.rerun()
@@ -306,32 +296,13 @@ def get_object_details():
 			if cancel:
 				st.session_state.edit_mode = False
 				st.rerun()
-	# "Check Object on a Node"
-	if check_node_clicked:
-		if not collection_name.strip() or not object_uuid.strip():
-			st.error("Please insert both Collection Name and UUID.")
-			return
-		try:
-			# Fetch node data and display table
-			active_endpoint = st.session_state.active_endpoint
-			active_api_key = st.session_state.active_api_key
-			if with_tenant and tenant_name:
-				data_object = find_object_in_tenant_on_nodes(active_endpoint, active_api_key, collection_name, object_uuid, tenant_name)
-			else:
-				data_object = find_object_in_collection_on_nodes(active_endpoint, active_api_key, collection_name, object_uuid)
-			node_df = data_object
-			st.dataframe(node_df, width="stretch")
-			st.text("✔ Found | ✖ Not Found | N/A The node does not exist (Hardcoded 11 nodes as maximum for now)")
-		except Exception as e:
-			st.error(f"An error occurred while checking the object on nodes: {e}")
 
 # Get collection configuration
 def get_collection_configuration():
-	print(f"get_collection_configuration called")
 	st.markdown("### Collection Configuration")
 
 	# Collection selection
-	collections = list_collections(st.session_state.client)
+	collections = list_collections()  
 	selected_collection = st.selectbox(
 		"Select Collection",
 		options=collections,
@@ -341,7 +312,7 @@ def get_collection_configuration():
 	if selected_collection:
 		st.session_state.current_collection = selected_collection
 		try:
-			config = get_collection_config(st.session_state.client, selected_collection)
+			config = get_collection_config(selected_collection)
 			if 'edit_collection_mode' not in st.session_state:
 				st.session_state.edit_collection_mode = False
 			if not st.session_state.edit_collection_mode:
@@ -382,7 +353,7 @@ def update_collection_config_ui(config):
 	if st.button("Update Description & Inverted Index", width="stretch", key="save_desc_inv"):
 		try:
 			update_description_and_inverted_index(
-				st.session_state.client,
+
 				st.session_state.current_collection,
 				description,
 				bm25_b,
@@ -412,7 +383,7 @@ def update_collection_config_ui(config):
 	if st.button("Update Multi-tenancy & Replication", width="stretch", key="save_multi_repl"):
 		try:
 			update_multi_tenancy_and_replication(
-				st.session_state.client,
+
 				st.session_state.current_collection,
 				auto_tenant_creation,
 				auto_tenant_activation,
@@ -441,7 +412,7 @@ def update_collection_config_ui(config):
 	if st.button("Update HNSW Vector Index", width="stretch", key="save_hnsw"):
 		try:
 			update_hnsw_vector_index(
-				st.session_state.client,
+
 				st.session_state.current_collection,
 				dynamic_ef_factor,
 				dynamic_ef_min,
@@ -482,9 +453,7 @@ def update_collection_config_ui(config):
 	pq_encoder_distribution_str = st.selectbox("PQ Encoder Distribution", [e.name for e in PQEncoderDistribution], index=[e.name for e in PQEncoderDistribution].index(encoder_distribution_name), key="pq_enc_dist")
 	if st.button("Update PQ Quantizer", width="stretch", key="save_pq"):
 		try:
-			update_pq_quantizer(
-				st.session_state.client,
-				st.session_state.current_collection,
+			update_pq_quantizer(st.session_state.current_collection,
 				pq_enabled,
 				pq_centroids,
 				pq_segments,

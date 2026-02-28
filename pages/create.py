@@ -19,7 +19,6 @@ def initialize_session_state():
 
 # Create a form for collection creation
 def create_collection_form():
-	print("create_collection_form() called")
 	with st.form("create_collection_form"):
 		# Collection name input
 		collection_name = st.text_input("Collection Name", placeholder="Enter collection name").strip()
@@ -53,7 +52,7 @@ def create_collection_form():
 		return submit_button, collection_name, selected_vectorizer, uploaded_file
 
 # Handle form submission
-def handle_form_submission(client, collection_name, selected_vectorizer, uploaded_file):
+def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 	print("handle_form_submission() called")
 	if not collection_name:
 		st.error("Please enter a collection name")
@@ -63,7 +62,7 @@ def handle_form_submission(client, collection_name, selected_vectorizer, uploade
 		return
 
 	# Create collection
-	success, message = create_collection(client, collection_name, selected_vectorizer)
+	success, message = create_collection(collection_name, selected_vectorizer)
 	if not success:
 		st.error(message)
 		return
@@ -85,7 +84,7 @@ def handle_form_submission(client, collection_name, selected_vectorizer, uploade
 	progress_messages = []
 
 	# Process the batch upload generator
-	for success, message, _ in batch_upload(client, collection_name, data):
+	for success, message, _ in batch_upload(collection_name, data):
 		progress_messages.append(message)
 		# Update progress display with HTML scrollable div on each yield
 		html_content = f"""
@@ -104,7 +103,7 @@ def handle_form_submission(client, collection_name, selected_vectorizer, uploade
 	# The detailed failed objects will be printed to the terminal
 
 	# Get collection info
-	success, info_msg, collection_info = get_collection_info(client, collection_name)
+	success, info_msg, collection_info = get_collection_info(collection_name)
 	if success:
 		st.session_state.collection_info = collection_info
 	else:
@@ -112,7 +111,7 @@ def handle_form_submission(client, collection_name, selected_vectorizer, uploade
 
 
 # Function to display collection information
-def display_collection_info(client):
+def display_collection_info():
 	print("display_collection_info() called")
 	if not st.session_state.collection_info:
 		return
@@ -125,7 +124,7 @@ def display_collection_info(client):
 		st.metric("Object Count", info["object_count"])
 
 		# Then display the objects
-		success, msg, df = get_collection_objects(client, info["name"])
+		success, msg, df = get_collection_objects(info["name"])
 		if success:
 			st.dataframe(df)
 		else: 
@@ -140,11 +139,10 @@ def main():
 	if st.session_state.get("client_ready"):
 		update_side_bar_labels()
 		initialize_session_state()
-		client = st.session_state.client
 		submit_button, collection_name, selected_vectorizer, uploaded_file = create_collection_form()
 		if submit_button:
-			handle_form_submission(client, collection_name, selected_vectorizer, uploaded_file)
-		display_collection_info(client)
+			handle_form_submission(collection_name, selected_vectorizer, uploaded_file)
+		display_collection_info()
 
 	else:
 		st.warning("Please Establish a connection to Weaviate in Cluster page!")

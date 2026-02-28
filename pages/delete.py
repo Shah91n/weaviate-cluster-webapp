@@ -33,7 +33,6 @@ def handle_collection_selection():
 				st.error("Please select at least one collection to delete")
 			else:
 				success, message = delete_collections(
-					st.session_state.client,
 					list(st.session_state.selected_collections)
 				)
 				if success:
@@ -82,7 +81,7 @@ def handle_mt_collection_selection():
 				for collection, tenants in st.session_state.selected_tenants.items():
 					if tenants:
 						success, message = delete_tenants_from_collection(
-							st.session_state.client,
+
 							collection,
 							list(tenants)
 						)
@@ -118,10 +117,8 @@ def handle_mt_collection_selection():
 
 def get_all_collections_and_tenants():
 	"""Main function to display and manage collections"""
-	client = st.session_state.client
-
 	# Refresh collections list
-	collections = list_all_collections(client)
+	collections = list_all_collections()
 	if not isinstance(collections, list):
 		collections = list(collections.keys())
 	collections.sort()
@@ -130,7 +127,7 @@ def get_all_collections_and_tenants():
 	# Update MT collections and their tenants
 	st.session_state.mt_collections = {}
 	for collection in collections:
-		tenants = get_tenant_names(client, collection)
+		tenants = get_tenant_names(collection)
 		if tenants:
 			st.session_state.mt_collections[collection] = sorted(tenants)
 

@@ -1,20 +1,32 @@
 import pandas as pd
-import requests
+import logging
 import streamlit as st
+import requests
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
+
 
 # Get collections count
-def get_collectios_count(client):
-	print("get_collectios_count() called")
-	collections = client.collections.list_all()
-	collection_count = len(collections)
-	return collection_count
+def get_collectios_count():
+	logger.info("get_collectios_count() called")
+	try:
+		client = get_weaviate_client()
+		collections = client.collections.list_all()
+		collection_count = len(collections)
+		return collection_count
+	except Exception as e:
+		logger.error(f"Error getting collections count: {e}")
+		return 0
+
 
 # Aggregate collections. Caches the results for 1 hour (Feel free to change).
 @st.cache_data(ttl=3600)
-def aggregate_collections(_client):
-	print(f"aggregate_collections() called")
+def aggregate_collections():
+	logger.info("aggregate_collections() called")
 	try:
-		collections = _client.collections.list_all()
+		client = get_weaviate_client()
+		collections = client.collections.list_all()
 		total_tenants_count = 0
 		result_data = []
 		empty_collections = 0
@@ -31,7 +43,7 @@ def aggregate_collections(_client):
 			for collection_name in collections:
 				collection_row = {"Collection": collection_name, "Count": "", "Tenant": "", "Tenant Count": ""}
 				result_data.append(collection_row)
-				collection = _client.collections.get(collection_name)
+				collection = client.collections.use(collection_name)
 				try:
 					# Attempt to get tenants for the collection (check if multi-tenancy is enabled)
 					tenants = collection.tenants.get()
@@ -56,6 +68,7 @@ def aggregate_collections(_client):
 								tenant_row = {"Collection": "", "Count": "", "Tenant": tenant_name, "Tenant Count": objects_count}
 								result_data.append(tenant_row)
 							except Exception as e_inner:
+								logger.error(f"Error getting tenant count: {e_inner}")
 								tenant_row = {"Collection": "", "Count": "", "Tenant": tenant_name, "Tenant Count": f"ERROR: {e_inner}"}
 								result_data.append(tenant_row)
 						
@@ -83,6 +96,8 @@ def aggregate_collections(_client):
 								"Count": 0
 							})
 						total_objects_regular += objects_count
+					else:
+						logger.error(f"Error processing collection {collection_name}: {e}")
 
 			result_df = pd.DataFrame(result_data)
 
@@ -98,7 +113,8 @@ def aggregate_collections(_client):
 				"empty_collections_list": empty_collections_list,
 				"empty_tenants_details": empty_tenants_details
 			}
-
+	except Exception as e:
+		logger.error(f"Error in aggregate_collections: {e}")
 		return {
 			"collection_count": 0,
 			"total_tenants_count": 0,
@@ -112,33 +128,44 @@ def aggregate_collections(_client):
 			"empty_tenants_details": []
 		}
 
-	except Exception as e:
-		return {"error": str(e)}
 
-# Get the schema of the Weaviate instance.
-def get_schema(client):
-	print("get_schema() called")
+# List all collections
+def list_collections():
+	logger.info("list_collections() called")
 	try:
-		schema = client.collections.list_all()
-		return schema if schema else None
-	except Exception as e:
-		return {"error": f"Error retrieving schema: {str(e)}"}
-
-# List all collections in the Weaviate instance.
-def list_collections(client):
-	print("list_collections() called")
-	try:
+		client = get_weaviate_client()
 		collections = client.collections.list_all()
-		return list(collections.keys()) if collections else []
+		if not collections:
+			return []
+		if hasattr(collections, "keys"):
+			return list(collections.keys())
+		return list(collections)
 	except Exception as e:
-		return {"error": f"Error retrieving collections: {str(e)}"}
+		logger.error(f"Error listing collections: {e}")
+		return []
+
+
+# Get collection schema
+def get_schema():
+	logger.info("get_schema() called")
+	try:
+		client = get_weaviate_client()
+		response = client.collections.list_all(simple=False)
+		return response if response else {}
+	except Exception as e:
+		logger.error(f"Error getting schema: {e}")
+		return {}
+
 
 # Get the configuration of a collection from the Weaviate instance.
 def fetch_collection_config(cluster_url, api_key, collection_name):
-	print(f"fetch_collection_config() called for collection: {collection_name}")
+	logger.info(f"fetch_collection_config() called for collection: {collection_name}")
 	headers = {"Authorization": f"Bearer {api_key}"}
 	endpoint = f"{cluster_url}/v1/schema/"
-	response = requests.get(endpoint, headers=headers)
+	try:
+		response = requests.get(endpoint, headers=headers)
+	except requests.RequestException as e:
+		return {"error": f"Error fetching schema: {e}"}
 
 	if response.status_code == 200:
 		schema = response.json().get("classes", [])
@@ -147,9 +174,10 @@ def fetch_collection_config(cluster_url, api_key, collection_name):
 				return cls
 	return {"error": f"Error fetching schema: {response.status_code} - {response.text}"}
 
+
 # Process the collection configuration to extract relevant information.
 def process_collection_config(config):
-	print("process_collection_config() called")
+	logger.info("process_collection_config() called")
 	if not config:
 		return {"error": "No configuration available"}
 
@@ -165,8 +193,7 @@ def process_collection_config(config):
 	module_configs = config.get("moduleConfig", {})
 	for mod_name, mod_conf in module_configs.items():
 		# Create a distinct section name for each module configuration
-		section_name = f"{mod_name}"
-		keys_to_display[section_name] = mod_conf
+		keys_to_display[f"{mod_name}"] = mod_conf
 
 	# Handle single vector configuration scenario
 	if "vectorIndexConfig" in config and "vectorizer" in config:

@@ -1,22 +1,27 @@
 import time
 import json
 import pandas as pd
+import logging
 from typing import Optional, Tuple
-from weaviate import Client
 from weaviate.classes.query import MetadataQuery
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Keyword search function
 # This function performs a keyword search on a specified collection in Weaviate.
 def keyword_search(
-    client: Client,
     collection: str,
     query: str,
     limit: int = 3,
     tenant_name: Optional[str] = None,
 ) -> Tuple[bool, str, pd.DataFrame, float]:
+	logger.info(f"keyword_search() called for collection: {collection}")
 	try:
+		# Get client from singleton manager
+		client = get_weaviate_client()
 		# Get collection
-		coll = client.collections.get(collection)
+		coll = client.collections.use(collection)
 		if tenant_name:
 			coll = coll.with_tenant(tenant_name)
 
@@ -68,4 +73,5 @@ def keyword_search(
 		return True, f"Found {len(results)} results", df, time_taken
 
 	except Exception as e:
+		logger.error(f"Error performing keyword search: {str(e)}")
 		return False, f"Error performing keyword search: {str(e)}", pd.DataFrame(), 0.0

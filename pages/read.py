@@ -14,8 +14,6 @@ def main():
 		st.warning("Please establish a connection to Weaviate in Cluster page")
 		return
 
-	client = st.session_state.client
-
 	# Initialize session state variables
 	if "collections_list" not in st.session_state:
 		st.session_state.collections_list = []
@@ -36,8 +34,7 @@ def main():
 
 	# Fetch button to load collections
 	if st.button("Fetch Collections List", width="stretch"):
-		print("Fetch Collections List button clicked")
-		collections = list_all_collections(client)
+		collections = list_all_collections()  
 		# Handle both dict and list return types
 		if not isinstance(collections, list):
 			collections = list(collections.keys())
@@ -62,7 +59,7 @@ def main():
 		)
 
 		# Get and sort tenant names
-		tenant_names = get_tenant_names(client, selected_collection)
+		tenant_names = get_tenant_names(selected_collection)  
 		if tenant_names:
 			tenant_names = sorted(tenant_names)
 
@@ -104,7 +101,6 @@ def main():
 				if read_button or st.session_state.query_results is None:
 					with st.spinner("Fetching objects with pagination... ⤵️"):
 						result = fetch_collection_data(
-							client, 
 							selected_collection, 
 							selected_tenant, 
 							page=st.session_state.current_page,
@@ -134,7 +130,7 @@ def main():
 						if st.button("⏮️ First", disabled=st.session_state.current_page == 1):
 							st.session_state.current_page = 1
 							st.session_state.query_results = fetch_collection_data(
-								client, selected_collection, selected_tenant,
+								selected_collection, selected_tenant,
 								page=1, items_per_page=st.session_state.items_per_page
 							)
 							st.rerun()
@@ -143,7 +139,7 @@ def main():
 						if st.button("◀️ Previous", disabled=st.session_state.current_page == 1):
 							st.session_state.current_page -= 1
 							st.session_state.query_results = fetch_collection_data(
-								client, selected_collection, selected_tenant,
+								selected_collection, selected_tenant,
 								page=st.session_state.current_page, items_per_page=st.session_state.items_per_page
 							)
 							st.rerun()
@@ -152,7 +148,7 @@ def main():
 						if st.button("Next ▶️", disabled=st.session_state.current_page >= result["total_pages"]):
 							st.session_state.current_page += 1
 							st.session_state.query_results = fetch_collection_data(
-								client, selected_collection, selected_tenant,
+								selected_collection, selected_tenant,
 								page=st.session_state.current_page, items_per_page=st.session_state.items_per_page
 							)
 							st.rerun()
@@ -161,7 +157,7 @@ def main():
 						if st.button("Last ⏭️", disabled=st.session_state.current_page >= result["total_pages"]):
 							st.session_state.current_page = result["total_pages"]
 							st.session_state.query_results = fetch_collection_data(
-								client, selected_collection, selected_tenant,
+								selected_collection, selected_tenant,
 								page=st.session_state.current_page, items_per_page=st.session_state.items_per_page
 							)
 							st.rerun()
@@ -177,7 +173,7 @@ def main():
 					if page_number != st.session_state.current_page:
 						st.session_state.current_page = page_number
 						st.session_state.query_results = fetch_collection_data(
-							client, selected_collection, selected_tenant,
+							selected_collection, selected_tenant,
 							page=page_number, items_per_page=st.session_state.items_per_page
 						)
 						st.rerun()

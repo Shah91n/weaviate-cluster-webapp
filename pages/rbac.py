@@ -14,9 +14,8 @@ from utils.rbac.read import (
 def main():
 	set_custom_page_config(page_title="Role-Based Access Control (RBAC)")
 	navigate()
-	if st.session_state.get("client_ready") and st.session_state.get("client"):
+	if st.session_state.get("client_ready"):
 		update_side_bar_labels()
-		client = st.session_state.client
 
 		st.write("Select to display Weaviate Database Role-Based Access Control data:")
 
@@ -31,22 +30,22 @@ def main():
 			show_combined = st.button("User Permissions Report", width="stretch")
 
 		if show_users:
-			df = list_all_users(client)
+			df = list_all_users()  
 			st.subheader("🫂 Users")
 			st.dataframe(df, width="stretch")
 			st.caption(f"Total Users: {len(df)}")
 		elif show_roles:
-			df = list_all_roles(client)
+			df = list_all_roles()  
 			st.subheader("🎭 Roles")
 			st.dataframe(df, width="stretch")
 			st.caption(f"Total Roles: {len(df)}")
 		elif show_permissions:
-			df = list_all_permissions(client)
+			df = list_all_permissions()  
 			st.subheader("🔐 Permissions")
 			st.dataframe(df, width="stretch")
 			st.caption(f"Total Permission Entries: {len(df)}")
 		elif show_combined:
-			df = list_users_roles_permissions_combined(client)
+			df = list_users_roles_permissions_combined()  
 			st.subheader("📋 Users Permissions Report")
 			st.dataframe(df, width="stretch")
 			st.caption(f"Total User-Role Assignments: {len(df)}")

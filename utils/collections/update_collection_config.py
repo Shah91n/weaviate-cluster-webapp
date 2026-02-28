@@ -1,22 +1,29 @@
 from weaviate.classes.config import Reconfigure, PQEncoderType, PQEncoderDistribution, VectorFilterStrategy, ReplicationDeletionStrategy
 import pandas as pd
+import logging
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Get the current configuration of a collection
-def get_collection_config(client, collection_name):
-	print(f"get_collection_config is called")
+def get_collection_config(collection_name):
+	logger.info(f"get_collection_config() called for collection: {collection_name}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		config = collection.config.get()
 		return config
 	except Exception as e:
+		logger.error(f"Failed to get collection configuration: {str(e)}")
 		raise Exception(f"Failed to get collection configuration: {str(e)}")
 
 # --- Sectioned update helpers ---
 
-def update_description_and_inverted_index(client, collection_name, description, bm25_b, bm25_k1, cleanup_interval_seconds, stopwords_preset, stopwords_additions, stopwords_removals):
-	print(f"update_description_and_inverted_index is called")
+def update_description_and_inverted_index(collection_name, description, bm25_b, bm25_k1, cleanup_interval_seconds, stopwords_preset, stopwords_additions, stopwords_removals):
+	logger.info(f"update_description_and_inverted_index() called for collection: {collection_name}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		update_config = {}
 		if description is not None:
 			update_config['description'] = description
@@ -39,12 +46,14 @@ def update_description_and_inverted_index(client, collection_name, description, 
 			collection.config.update(**update_config)
 		return True
 	except Exception as e:
+		logger.error(f"Failed to update description/inverted index: {str(e)}")
 		raise Exception(f"Failed to update description/inverted index: {str(e)}")
 
-def update_multi_tenancy_and_replication(client, collection_name, auto_tenant_creation, auto_tenant_activation, async_enabled, deletion_strategy):
-	print(f"update_multi_tenancy_and_replication is called")
+def update_multi_tenancy_and_replication(collection_name, auto_tenant_creation, auto_tenant_activation, async_enabled, deletion_strategy):
+	logger.info(f"update_multi_tenancy_and_replication() called for collection: {collection_name}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		update_config = {}
 		multi_kwargs = {}
 		if auto_tenant_creation is not None:
@@ -69,12 +78,14 @@ def update_multi_tenancy_and_replication(client, collection_name, auto_tenant_cr
 			collection.config.update(**update_config)
 		return True
 	except Exception as e:
+		logger.error(f"Failed to update multi-tenancy/replication: {str(e)}")
 		raise Exception(f"Failed to update multi-tenancy/replication: {str(e)}")
 
-def update_hnsw_vector_index(client, collection_name, dynamic_ef_factor, dynamic_ef_min, dynamic_ef_max, filter_strategy, flat_search_cutoff, vector_cache_max_objects):
-	print(f"update_hnsw_vector_index is called")
+def update_hnsw_vector_index(collection_name, dynamic_ef_factor, dynamic_ef_min, dynamic_ef_max, filter_strategy, flat_search_cutoff, vector_cache_max_objects):
+	logger.info(f"update_hnsw_vector_index() called for collection: {collection_name}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		hnsw_params = {}
 		if dynamic_ef_factor is not None:
 			hnsw_params['dynamic_ef_factor'] = dynamic_ef_factor
@@ -97,12 +108,14 @@ def update_hnsw_vector_index(client, collection_name, dynamic_ef_factor, dynamic
 			collection.config.update(vector_config=Reconfigure.VectorIndex.hnsw(**hnsw_params))
 		return True
 	except Exception as e:
+		logger.error(f"Failed to update HNSW vector index: {str(e)}")
 		raise Exception(f"Failed to update HNSW vector index: {str(e)}")
 
-def update_pq_quantizer(client, collection_name, pq_enabled, pq_centroids, pq_segments, pq_training_limit, pq_encoder_type, pq_encoder_distribution):
-	print(f"update_pq_quantizer is called")
+def update_pq_quantizer(collection_name, pq_enabled, pq_centroids, pq_segments, pq_training_limit, pq_encoder_type, pq_encoder_distribution):
+	logger.info(f"update_pq_quantizer() called for collection: {collection_name}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		pq_kwargs = {}
 		if pq_enabled is not None:
 			pq_kwargs['enabled'] = pq_enabled
@@ -129,11 +142,12 @@ def update_pq_quantizer(client, collection_name, pq_enabled, pq_centroids, pq_se
 		collection.config.update(vector_config=Reconfigure.VectorIndex.hnsw(quantizer=Reconfigure.VectorIndex.Quantizer.pq(**pq_kwargs)))
 		return True
 	except Exception as e:
+		logger.error(f"Failed to update PQ quantizer: {str(e)}")
 		raise Exception(f"Failed to update PQ quantizer: {str(e)}")
 
 # Convert and display collection configuration to a pandas DataFrame
 def display_config_as_table(config):
-	print(f"display_config_as_table is called")
+	logger.info("display_config_as_table() called")
 	if config is None:
 		return pd.DataFrame()
 	flat_config = {}
