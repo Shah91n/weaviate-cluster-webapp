@@ -2,8 +2,12 @@ import pandas as pd
 import streamlit as st
 import requests
 import time
+import logging
 from utils.cluster.collection import aggregate_collections, get_schema, list_collections, process_collection_config, fetch_collection_config, get_collectios_count
-from utils.cluster.cluster_operations import fetch_cluster_statistics, process_statistics, get_shards_info, process_shards_data, get_metadata, check_shard_consistency, diagnose_schema
+from utils.cluster.cluster_operations import fetch_cluster_statistics, process_statistics, get_shards_info, process_shards_data, get_metadata, diagnose_schema, check_shard_consistency
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------
 # Action Handlers (one function per button) for Cluster Operations
@@ -11,8 +15,8 @@ from utils.cluster.cluster_operations import fetch_cluster_statistics, process_s
 
 # Fetch node info and display node and shard details.
 def action_nodes_and_shards():
-	print("action_nodes_and_shards called")
-	node_info = get_shards_info(st.session_state.client)
+	logger.info("action_nodes_and_shards called")
+	node_info = get_shards_info()
 	if node_info:
 		processed_data = process_shards_data(node_info)
 		node_table = processed_data["node_data"]
@@ -44,10 +48,11 @@ def action_nodes_and_shards():
 			st.dataframe(readonly_shards_table[["Node Name", "Class", "Shard Name", "Object Count"]].astype(str), width="stretch")
 			st.warning("⬇️ This operation requires administrator privileges. Please ensure you are connected with an admin API key.")
 			if st.button("Set all Read-only Shards to READY", type="primary"):
+				client = get_weaviate_client()
 				readonly_groups = readonly_shards_table.groupby("Class")["Shard Name"].apply(list).to_dict()
 				for collection_name, shard_names in readonly_groups.items():
 					try:
-						coll = st.session_state.client.collections.get(collection_name)
+						coll = client.collections.use(collection_name)
 						result = coll.config.update_shards(
 							status="READY",
 							shard_names=shard_names
@@ -61,27 +66,11 @@ def action_nodes_and_shards():
 	else:
 		st.error("Failed to retrieve node and shard details.")
 
-# Check for shard consistency.
-def action_check_shard_consistency():
-	print("action_check_shard_consistency called")
-	node_info = get_shards_info(st.session_state.client)
-	if node_info:
-		df_inconsistent_shards = check_shard_consistency(node_info)
-		if df_inconsistent_shards is not None:
-			inconsistent_collections = list(df_inconsistent_shards["Collection"].unique())
-			total = len(inconsistent_collections)
-			st.markdown(f"#### Inconsistent Shards Table with {total} Inconsistent collections")
-			st.dataframe(df_inconsistent_shards.astype(str), width="stretch")
-		else:
-			st.success("All shards are consistent.")
-	else:
-		st.error("Failed to retrieve node and shard details.")
-
 # Aggregate collections and tenants.
 def action_aggregate_collections_tenants():
-	print("action_aggregate_collections_tenants called")
+	logger.info("action_aggregate_collections_tenants called")
 	st.markdown("###### Collections & Tenants aggregation time may vary depending on the dataset size, as it iterates through all collections and tenants. Check below for tables with statistics.")
-	result = aggregate_collections(st.session_state.client)
+	result = aggregate_collections()
 	if "error" in result:
 		st.error(f"Error retrieving collections: {result['error']}")
 		return
@@ -151,8 +140,8 @@ def action_aggregate_collections_tenants():
 
 # Fetch and display collection properties.
 def action_collection_schema():
-	print("action_collection_schema called")
-	schema = get_schema(st.session_state.client)
+	logger.info("action_collection_schema called")
+	schema = get_schema()
 	if schema is not None:
 		if "error" in schema:
 			st.error(schema["error"])
@@ -184,7 +173,7 @@ def action_collection_schema():
 
 # Fetch and display cluster statistics (RAFT).
 def action_statistics(cluster_endpoint, api_key):
-	print("action_statistics called")
+	logger.info("action_statistics called")
 	st.markdown("#### Cluster Statistics Details")
 	try:
 		stats = fetch_cluster_statistics(cluster_endpoint, api_key)
@@ -220,11 +209,12 @@ def action_statistics(cluster_endpoint, api_key):
 			st.dataframe(latest_config_df, width="stretch")
 
 	except Exception as e:
+		logger.error(f"Error fetching cluster statistics: {e}")
 		st.error(f"Error fetching cluster statistics: {e}")
 
 # Fetch and display cluster metadata.
 def action_metadata(cluster_endpoint, api_key):
-	print("action_metadata called")
+	logger.info("action_metadata called")
 	st.markdown("#### Cluster Metadata Details")
 	metadata_result = get_metadata()
 
@@ -256,7 +246,7 @@ def action_collections_configuration(cluster_endpoint, api_key):
 	Similar to Collection Properties, this always fetches fresh data.
 	"""
 	# Fetch fresh collection list every time
-	collection_list = list_collections(st.session_state.client)
+	collection_list = list_collections()
 	
 	if not collection_list or isinstance(collection_list, dict):
 		st.warning("No collections available to display.")
@@ -354,6 +344,23 @@ def action_diagnose(cluster_endpoint, api_key):
 	st.markdown("#### 🔍 Schema Diagnostics Report")
 	st.markdown("Running comprehensive schema diagnostics...")
 	
+	# Check for shard consistency
+	st.markdown("---")
+	st.markdown("### 🔄 Shard Consistency Check")
+	node_info = get_shards_info()
+	if node_info:
+		df_inconsistent_shards = check_shard_consistency(node_info)
+		if df_inconsistent_shards is not None:
+			inconsistent_collections = list(df_inconsistent_shards["Collection"].unique())
+			total = len(inconsistent_collections)
+			st.error(f"⚠️ **{total} Inconsistent Shard(s) Found** - These need attention")
+			st.dataframe(df_inconsistent_shards.astype(str), width="stretch")
+		else:
+			st.success("✅ All shards are consistent")
+	else:
+		st.warning("Could not retrieve shard information")
+	
+	# Schema diagnostics
 	diagnostics = diagnose_schema(cluster_endpoint, api_key)
 	
 	if "error" in diagnostics:

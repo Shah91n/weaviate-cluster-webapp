@@ -10,8 +10,6 @@ from utils.sidebar.helper import update_side_bar_labels
 
 # Initialize session state variables
 def initialize_session_state():
-	print("initialize_session_state() called")
-
 	if 'selected_collection' not in st.session_state:
 		st.session_state.selected_collection = None
 	if 'search_query' not in st.session_state:
@@ -29,9 +27,9 @@ def initialize_session_state():
 
 # Display the search interface with parameter
 def display_search_interface():
-	print("display_search_interface() called")
+	st.subheader("Search in Collection")
 	# Collection selection
-	collections = list_collections(st.session_state.client)
+	collections = list_collections()
 	selected_collection = st.selectbox(
 		"Select Collection",
 		options=collections,
@@ -40,7 +38,7 @@ def display_search_interface():
 	)
 
 	# Tenant selection (only for MT collections)
-	tenant_names = get_tenant_names(st.session_state.client, selected_collection)
+	tenant_names = get_tenant_names(selected_collection)
 	selected_tenant = None
 	if tenant_names:
 		tenant_names = sorted(tenant_names)
@@ -56,7 +54,9 @@ def display_search_interface():
 		st.session_state.search_selected_tenant = None
 
 	# Get the collection and check if the collection has named vectors
-	collection = st.session_state.client.collections.get(selected_collection)
+	from utils.connection.weaviate_connection_manager import get_weaviate_client
+	client = get_weaviate_client()
+	collection = client.collections.use(selected_collection)
 	collection_config = collection.config.get()
 	target_vector = None
 	# Only show target vector selection if collection has named vectors
@@ -130,7 +130,6 @@ def display_search_interface():
 		if search_type == "Hybrid":
 			if st.session_state.selected_target_vector:
 				success, message, df, time_taken = hybrid_search_with_multiple_vectors(
-					st.session_state.client,
 					selected_collection,
 					target_vector,
 					query,
@@ -140,7 +139,6 @@ def display_search_interface():
 				)
 			else:
 				success, message, df, time_taken = hybrid_search(
-					st.session_state.client,
 					selected_collection,
 					query,
 					alpha,
@@ -153,7 +151,6 @@ def display_search_interface():
 				
 				if st.session_state.selected_target_vector:
 					success, message, df, time_taken = vector_search_with_multiple_vectors(
-						st.session_state.client,
 						selected_collection,
 						target_vector,
 						vector_list,
@@ -162,7 +159,6 @@ def display_search_interface():
 					)
 				else:
 					success, message, df, time_taken = vector_search(
-						st.session_state.client,
 						selected_collection,
 						vector_list,
 						limit,
@@ -173,7 +169,6 @@ def display_search_interface():
 				return
 		else:
 			success, message, df, time_taken = keyword_search(
-				st.session_state.client,
 				selected_collection,
 				query,
 				limit,

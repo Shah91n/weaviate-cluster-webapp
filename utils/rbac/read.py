@@ -1,7 +1,12 @@
 from typing import Any, List, Dict
+import logging
+from utils.connection.weaviate_connection_manager import get_weaviate_client
 
-def list_all_users(client: Any) -> List[Dict]:
-    print("list_all_users() called")
+logger = logging.getLogger(__name__)
+
+def list_all_users() -> List[Dict]:
+    logger.info("list_all_users() called")
+    client = get_weaviate_client()
     all_users = client.users.db.list_all()
     users_data = []
     for user in all_users:
@@ -13,8 +18,9 @@ def list_all_users(client: Any) -> List[Dict]:
         })
     return users_data
 
-def list_all_roles(client: Any) -> List[Dict]:
-    print("list_all_roles() called")
+def list_all_roles() -> List[Dict]:
+    logger.info("list_all_roles() called")
+    client = get_weaviate_client()
     all_roles = client.roles.list_all()
     roles_data = []
     for role_name, role_obj in all_roles.items():
@@ -51,8 +57,9 @@ def list_all_roles(client: Any) -> List[Dict]:
         })
     return roles_data
 
-def list_all_permissions(client: Any) -> List[Dict]:
-    print("list_all_permissions() called")
+def list_all_permissions() -> List[Dict]:
+    logger.info("list_all_permissions() called")
+    client = get_weaviate_client()
     all_roles = client.roles.list_all()
     permissions_data = []
     for role_name, role_obj in all_roles.items():
@@ -150,8 +157,9 @@ def list_all_permissions(client: Any) -> List[Dict]:
                 })
     return permissions_data
 
-def list_users_roles_permissions_combined(client: Any) -> List[Dict]:
-    print("list_users_roles_permissions_combined() called")
+def list_users_roles_permissions_combined() -> List[Dict]:
+    logger.info("list_users_roles_permissions_combined() called")
+    client = get_weaviate_client()
     all_users = client.users.db.list_all()
     all_roles = client.roles.list_all()
     combined_data = []

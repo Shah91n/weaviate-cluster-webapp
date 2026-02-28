@@ -3,13 +3,12 @@ import pandas as pd
 from utils.sidebar.navigation import navigate
 from utils.sidebar.helper import update_side_bar_labels
 from utils.multitenancy.tenantdetails import get_tenant_details, get_multitenancy_collections, aggregate_tenant_states
-from utils.cluster.cluster_operations import get_schema
+from utils.cluster.collection import get_schema
 from utils.page_config import set_custom_page_config
 
 #Displays UI for multi-tenancy collections.	Returns True if MT collections are found, False otherwise.
-def display_multitenancy(client):
-	print("display_multitenancy() called")
-	schema = get_schema(client)
+def display_multitenancy():
+	schema = get_schema() 
 	
 	if isinstance(schema, dict) and 'error' in schema:
 		st.error(schema['error'])
@@ -59,10 +58,9 @@ def display_multitenancy(client):
 	return True
 
 def tenant_details():
-	print("tenant_details() called")
 	if st.button("Get Tenant Details"):
 		selected_collection_name = st.session_state.get("selected_collection_name")
-		tenants = get_tenant_details(st.session_state.client, selected_collection_name)
+		tenants = get_tenant_details(selected_collection_name)
 		aggregated_states = aggregate_tenant_states(tenants)
 		tenant_data = []
 		for tenant_id, tenant in tenants.items():
@@ -84,7 +82,7 @@ def main():
 
 	if st.session_state.get("client_ready"):
 		update_side_bar_labels()
-		found_mt_collections = display_multitenancy(st.session_state.client)
+		found_mt_collections = display_multitenancy()
 		if found_mt_collections:
 			tenant_details()
 	else:

@@ -1,24 +1,31 @@
 import pandas as pd
-import requests
+import logging
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Get object in Non Multitenant collection
-def get_object_in_collection(client, collection_name, uuid):
-	collection = client.collections.get(collection_name)
+def get_object_in_collection(collection_name, uuid):
+	logger.info(f"get_object_in_collection() called for collection: {collection_name}, uuid: {uuid}")
+	client = get_weaviate_client()
+	collection = client.collections.use(collection_name)
 	data_object = collection.query.fetch_object_by_id(uuid, include_vector=True)
 
 	if data_object is None:
-		print(f"Object with UUID '{uuid}' not found.")
+		logger.warning(f"Object with UUID '{uuid}' not found.")
 		return None
 
 	return data_object
 
 # Get object in Multitenant collection
-def get_object_in_tenant(client, collection_name, uuid, tenant):
-	collection = client.collections.get(collection_name).with_tenant(tenant)
+def get_object_in_tenant(collection_name, uuid, tenant):
+	logger.info(f"get_object_in_tenant() called for collection: {collection_name}, uuid: {uuid}, tenant: {tenant}")
+	client = get_weaviate_client()
+	collection = client.collections.use(collection_name).with_tenant(tenant)
 	data_object = collection.query.fetch_object_by_id(uuid, include_vector=True)
 
 	if data_object is None:
-		print(f"Object with UUID '{uuid}' not found.")
+		logger.warning(f"Object with UUID '{uuid}' not found.")
 		return None
 
 	return data_object
@@ -26,7 +33,7 @@ def get_object_in_tenant(client, collection_name, uuid, tenant):
 # Display object in a table format
 def display_object_as_table(data_object):
 	if data_object is None:
-		print("No data to display.")
+		logger.info("No data to display.")
 		return
 
 	metadata_fields = {
@@ -50,70 +57,12 @@ def display_object_as_table(data_object):
 
 	return df
 
-# Find object in in the nodes in a Non Multitenant collection
-def find_object_in_collection_on_nodes(client_endpoint, api_key, collection_name, object_uuid):
-
-	node_names = [
-		"weaviate-0", "weaviate-1", "weaviate-2", "weaviate-3",
-		"weaviate-4", "weaviate-5", "weaviate-6", "weaviate-7",
-		"weaviate-8", "weaviate-9", "weaviate-10", "weaviate-11"
-	]
-
-	headers = {"Authorization": f"Bearer {api_key}"}
-	results = {}
-
-	for node in node_names:
-		url = f"{client_endpoint}/v1/objects/{collection_name}/{object_uuid}"
-		params_single = {"node_name": node}
-
-		resp_single = requests.get(url, params=params_single, headers=headers)
-
-		if resp_single.status_code == 200:
-			results[node] = "✔" # Found
-		elif resp_single.status_code == 404:
-			results[node] = "✖" # Not Found
-		elif resp_single.status_code == 500:
-			results[node] = "N/A" # Not applicable as the node does not exist
-		else:
-			results[node] = f"Error {resp_single.status_code}" # Error
-
-	df = pd.DataFrame([results], index=[object_uuid])
-	return df
-
-# Find object in in the nodes in a Multitenant collection
-def find_object_in_tenant_on_nodes(client_endpoint, api_key, collection_name, object_uuid, tenant):
-
-	node_names = [
-		"weaviate-0", "weaviate-1", "weaviate-2", "weaviate-3",
-		"weaviate-4", "weaviate-5", "weaviate-6", "weaviate-7",
-		"weaviate-8", "weaviate-9", "weaviate-10", "weaviate-11"
-	]
-
-	headers = {"Authorization": f"Bearer {api_key}"}
-	results = {}
-
-	for node in node_names:
-		url = f"{client_endpoint}/v1/objects/{collection_name}/{object_uuid}"
-		params_single = {"node_name": node, "tenant": tenant}
-
-		resp_single = requests.get(url, params=params_single, headers=headers)
-
-		if resp_single.status_code == 200:
-			results[node] = "✔" # Found
-		elif resp_single.status_code == 404:
-			results[node] = "✖" # Not Found
-		elif resp_single.status_code == 500:
-			results[node] = "N/A" # Not applicable as the node does not exist
-		else:
-			results[node] = f"Error {resp_single.status_code}"
-
-	df = pd.DataFrame([results], index=[object_uuid])
-	return df
-
 # Update object
-def update_object_properties(client, collection_name, uuid, properties, tenant=None):
+def update_object_properties(collection_name, uuid, properties, tenant=None):
+	logger.info(f"update_object_properties() called for collection: {collection_name}, uuid: {uuid}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		if tenant:
 			collection = collection.with_tenant(tenant)
 		collection.data.update(
@@ -122,4 +71,5 @@ def update_object_properties(client, collection_name, uuid, properties, tenant=N
 		)
 		return True
 	except Exception as e:
+		logger.error(f"Failed to update object: {str(e)}")
 		raise Exception(f"Failed to update object: {str(e)}")

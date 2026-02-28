@@ -2,24 +2,28 @@ import time
 import re
 import json
 import pandas as pd
+import logging
 from typing import Optional, Tuple
-from weaviate import Client
 from weaviate.classes.query import MetadataQuery
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Hybrid search function
 # This function performs a hybrid search on a specified collection in Weaviate.
 def hybrid_search(
-    client: Client,
     collection: str,
     query: str,
     alpha: float = 0.5,
     limit: int = 3,
     tenant_name: Optional[str] = None,
 ) -> Tuple[bool, str, pd.DataFrame, float]:
-	print("hybrid_search() called")
+	logger.info(f"hybrid_search() called for collection: {collection}")
 	try:
+		# Get client from singleton manager
+		client = get_weaviate_client()
 		# Get collection
-		coll = client.collections.get(collection)
+		coll = client.collections.use(collection)
 		if tenant_name:
 			coll = coll.with_tenant(tenant_name)
 
@@ -77,10 +81,10 @@ def hybrid_search(
 		return True, f"Found {len(results)} results", df, time_taken
 
 	except Exception as e:
+		logger.error(f"Error performing hybrid search: {str(e)}")
 		return False, f"Error performing hybrid search: {str(e)}", pd.DataFrame(), 0.0
 
 def hybrid_search_with_multiple_vectors(
-	client: Client,
 	collection: str,
 	targetvector: str,
 	query: str,
@@ -88,10 +92,12 @@ def hybrid_search_with_multiple_vectors(
 	limit: int = 3,
 	tenant_name: Optional[str] = None,
 ) -> Tuple[bool, str, pd.DataFrame, float]:
-	print("hybrid_search_with_multiple_vectors() called")
+	logger.info(f"hybrid_search_with_multiple_vectors() called for collection: {collection}")
 	try:
+		# Get client from singleton manager
+		client = get_weaviate_client()
 		# Get collection
-		coll = client.collections.get(collection)
+		coll = client.collections.use(collection)
 		if tenant_name:
 			coll = coll.with_tenant(tenant_name)
 

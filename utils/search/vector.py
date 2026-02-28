@@ -2,24 +2,28 @@ import time
 import re
 import json
 import pandas as pd
+import logging
 from typing import Optional, Tuple
-from weaviate import Client
 from weaviate.classes.query import MetadataQuery
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
 
 # Vector search function
 # This function performs a vector search on a specified collection in Weaviate.
 
 def vector_search(
-    client: Client,
     collection: str,
     vectors: list[float],
     limit: int = 3,
     tenant_name: Optional[str] = None,
 ) -> Tuple[bool, str, pd.DataFrame, float]:
-	print("vector_search() called")
+	logger.info(f"vector_search() called for collection: {collection}")
 	try:
+		# Get client from singleton manager
+		client = get_weaviate_client()
 		# Get collection
-		coll = client.collections.get(collection)
+		coll = client.collections.use(collection)
 		if tenant_name:
 			coll = coll.with_tenant(tenant_name)
 
@@ -72,21 +76,23 @@ def vector_search(
 		return True, f"Found {len(results)} results", df, time_taken
 
 	except Exception as e:
+		logger.error(f"Error performing Vector search: {str(e)}")
 		return False, f"Error performing Vector search: {str(e)}", pd.DataFrame(), 0.0
 
 
 def vector_search_with_multiple_vectors(
-    client: Client,
     collection: str,
     targetvector: str,
     vectors: list[float],
     limit: int = 3,
     tenant_name: Optional[str] = None,
 ) -> Tuple[bool, str, pd.DataFrame, float]:
-	print("vector_search_with_multiple_vectors() called")
+	logger.info(f"vector_search_with_multiple_vectors() called for collection: {collection}")
 	try:
+		# Get client from singleton manager
+		client = get_weaviate_client()
 		# Get collection
-		coll = client.collections.get(collection)
+		coll = client.collections.use(collection)
 		if tenant_name:
 			coll = coll.with_tenant(tenant_name)
 
@@ -140,10 +146,11 @@ def vector_search_with_multiple_vectors(
 		return True, f"Found {len(results)} results", df, time_taken
 
 	except Exception as e:
+		logger.error(f"Error performing Vector search: {str(e)}")
 		return False, f"Error performing Vector search: {str(e)}", pd.DataFrame(), 0.0
 	
 def parse_vector_input(vector_string: str) -> list[float]:
-    print("parse_vector_input() called")
+    logger.info("parse_vector_input() called")
     try:
         # Remove all whitespace and newlines first
         cleaned = vector_string.replace('\n', '').replace('\r', '').replace(' ', '')
@@ -156,4 +163,5 @@ def parse_vector_input(vector_string: str) -> list[float]:
         
         return vector_list
     except ValueError as e:
+        logger.error(f"Invalid vector format: {e}")
         raise ValueError(f"Invalid vector format: {e}")

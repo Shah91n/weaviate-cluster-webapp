@@ -1,36 +1,44 @@
 import pandas as pd
 from weaviate.classes.query import Sort
 import streamlit as st
+import logging
+from utils.connection.weaviate_connection_manager import get_weaviate_client
+
+logger = logging.getLogger(__name__)
+
 # List all collections
-def list_all_collections(client):
-	print("list_all_collections() called")
+def list_all_collections():
+	logger.info("list_all_collections() called")
 	try:
+		client = get_weaviate_client()
 		collections = client.collections.list_all()
 		return collections
 	except Exception as e:
-		print(f"Error retrieving collections: {e}")
+		logger.error(f"Error retrieving collections: {e}")
 		return []
 
 # Retrieves tenant names for a given collection if multi-tenancy is enabled.
-def get_tenant_names(client, collection_name):
-	print(f"get_tenant_names() called for collection: {collection_name}")
+def get_tenant_names(collection_name):
+	logger.info(f"get_tenant_names() called for collection: {collection_name}")
 	try:
-		collection = client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		tenants = collection.tenants.get()
 		return [tenant.name for tenant in tenants.values()] if tenants else []
 	except Exception as e:
 		if "multi-tenancy is not enabled" in str(e).lower():
 			return []
 		else:
-			print(f"Error retrieving tenants: {e}")
+			logger.error(f"Error retrieving tenants: {e}")
 			return []
 
 # Fetches data from a collection with pagination. Caches the results for 1 hour (Feel free to change).
 @st.cache_data(ttl=3600)
-def fetch_collection_data(_client, collection_name, tenant_name=None, page=1, items_per_page=1000):
-	print(f"fetch_collection_data() called")
+def fetch_collection_data(collection_name, tenant_name=None, page=1, items_per_page=1000):
+	logger.info(f"fetch_collection_data() called")
 	try:
-		collection = _client.collections.get(collection_name)
+		client = get_weaviate_client()
+		collection = client.collections.use(collection_name)
 		if tenant_name:
 			collection = collection.with_tenant(tenant_name)
 
@@ -42,7 +50,7 @@ def fetch_collection_data(_client, collection_name, tenant_name=None, page=1, it
 		# Calculate how many items to skip
 		items_to_skip = (page - 1) * items_per_page
 
-		#fetch_objects
+		# fetch_objects
 		query_result = collection.query.fetch_objects(
 			limit=items_per_page,
 			offset=items_to_skip,
@@ -73,7 +81,7 @@ def fetch_collection_data(_client, collection_name, tenant_name=None, page=1, it
 				"items_per_page": items_per_page
 			}
 		else:
-			print(f"No data found (or Tenant is inactive) in collection '{collection_name}'{' for tenant ' + tenant_name if tenant_name else ''}.")
+			logger.info(f"No data found (or Tenant is inactive) in collection '{collection_name}'{' for tenant ' + tenant_name if tenant_name else ''}.")
 			return {
 				"data": pd.DataFrame(),
 				"total_count": 0,
@@ -82,7 +90,7 @@ def fetch_collection_data(_client, collection_name, tenant_name=None, page=1, it
 				"items_per_page": items_per_page
 			}
 	except Exception as e:
-		print(f"Error fetching data from collection '{collection_name}'{' for tenant ' + tenant_name if tenant_name else ''}: {e}")
+		logger.error(f"Error fetching data from collection '{collection_name}'{' for tenant ' + tenant_name if tenant_name else ''}: {e}")
 		return {
 			"data": pd.DataFrame(),
 			"total_count": 0,
