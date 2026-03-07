@@ -26,161 +26,199 @@ def initialize_session_state():
 	if 'search_selected_tenant' not in st.session_state:
 		st.session_state.search_selected_tenant = None
 
-# Display the search interface with parameter
+# Display the search
 def display_search_interface():
 	st.subheader("Search in Collection")
-	# Collection selection
-	collections = list_collections()
+
+	# Collections list
+	collections = list_collections() or []
+	if not collections:
+		st.warning("No collections available. Create a collection first.")
+		st.session_state.selected_collection = None
+		return
+
+	# Determine default selection index from session
+	default_index = 0
+	if st.session_state.get('selected_collection') in collections:
+		try:
+			default_index = collections.index(st.session_state.selected_collection)
+		except Exception:
+			default_index = 0
+
 	selected_collection = st.selectbox(
 		"Select Collection",
 		options=collections,
-		index=collections.index(st.session_state.selected_collection) if st.session_state.selected_collection in collections else 0,
-		help="Choose a collection to search in"
+		index=default_index,
+		help="Choose a collection to search in",
 	)
 
 	# Tenant selection (only for MT collections)
-	tenant_names = get_tenant_names(selected_collection)
+	tenant_names = get_tenant_names(selected_collection) or []
 	selected_tenant = None
 	if tenant_names:
 		tenant_names = sorted(tenant_names)
-		selected_tenant_index = tenant_names.index(st.session_state.search_selected_tenant) if st.session_state.search_selected_tenant in tenant_names else 0
+		selected_tenant_index = 0
+		if st.session_state.get('search_selected_tenant') in tenant_names:
+			try:
+				selected_tenant_index = tenant_names.index(st.session_state.search_selected_tenant)
+			except Exception:
+				selected_tenant_index = 0
 		selected_tenant = st.selectbox(
 			"Select Tenant",
 			tenant_names,
 			index=selected_tenant_index,
 			help="Choose a tenant to scope your search",
-			key="search_tenant_select"
+			key="search_tenant_select",
 		)
 	else:
 		st.session_state.search_selected_tenant = None
 
-	# Get the collection and check if the collection has named vectors
+	# Get the collection and check named vectors
 	client = get_weaviate_client()
+	if not selected_collection:
+		st.error("No collection selected")
+		return
 	collection = client.collections.use(selected_collection)
 	collection_config = collection.config.get()
 	target_vector = None
-	# Only show target vector selection if collection has named vectors
-	if collection_config.vector_config is not None and len(collection_config.vector_config) > 0:
+	if getattr(collection_config, 'vector_config', None):
 		vector_names = list(collection_config.vector_config.keys())
 		target_vector = st.selectbox(
 			"Select Target Vector",
 			options=vector_names,
 			index=0,
-			help="Choose which named vector to search"
+			help="Choose which named vector to search",
 		)
 		st.session_state.selected_target_vector = target_vector
 	else:
 		st.session_state.selected_target_vector = None
 
-	# Search type selection
+	# Search type
 	search_type = st.radio(
 		"Search Type",
 		options=["Hybrid", "Keyword", "Vector"],
 		horizontal=True,
-		help="Choose between hybrid (vector + keyword) or keyword-only search"
+		help="Choose between hybrid (vector + keyword) or keyword-only search",
 	)
 
-	# Search parameters
 	query = st.text_input(
 		"Search Query/Vector",
 		value=st.session_state.search_query,
-		help="Enter your search query/vector (for vector search, use a comma-separated list of floats like: 0.1,0.2,0.3)"
+		help="Enter your search query/vector (for vector search, use a comma-separated list of floats like: 0.1,0.2,0.3)",
 	)
 
 	col1, col2 = st.columns(2)
 	with col1:
+		alpha_str = None
 		if search_type == "Hybrid":
-			alpha = st.number_input(
+			alpha_str = st.text_input(
 				"Alpha",
-				min_value=0.0,
-				max_value=1.0,
-				value=st.session_state.search_alpha,
-				step=0.1,
-				help="Balance between vector and keyword search (0.0 to 1.0)"
+				value=str(st.session_state.search_alpha),
+				help="Balance between vector and keyword search (0.0 to 1.0)",
+				key="search_alpha_input",
 			)
 	with col2:
-		limit = st.number_input(
+		limit_str = st.text_input(
 			"Limit",
-			min_value=1,
-			max_value=100,
-			value=st.session_state.search_limit,
-			step=1,
-			help="Maximum number of results to return"
+			value=str(st.session_state.search_limit),
+			help="Maximum number of results to return",
+			key="search_limit_input",
 		)
 
 	# Search button
 	search_button = st.button("Search")
-
 	if search_button:
 		if tenant_names and not selected_tenant:
 			st.error("Please select a tenant for this collection")
 			return
 
-		# Update session state
+		# Parse and persist inputs from text fields
+		try:
+			limit_val = int(st.session_state.get('search_limit_input', limit_str or str(st.session_state.search_limit)))
+		except Exception:
+			st.error("Limit must be an integer between 1 and 100")
+			return
+		if not (1 <= limit_val <= 100):
+			st.error("Limit must be between 1 and 100")
+			return
+
+		# Parse alpha if hybrid
+		if search_type == "Hybrid":
+			try:
+				raw_alpha = st.session_state.get('search_alpha_input', alpha_str or str(st.session_state.search_alpha))
+				alpha_val = float(raw_alpha)
+			except Exception:
+				st.error("Alpha must be a number between 0.0 and 1.0")
+				return
+			if not (0.0 <= alpha_val <= 1.0):
+				st.error("Alpha must be between 0.0 and 1.0")
+				return
+			st.session_state.search_alpha = alpha_val
+			alpha = alpha_val
+		else:
+			alpha = None
+
+		# Persist session state
 		st.session_state.selected_collection = selected_collection
 		st.session_state.selected_target_vector = target_vector
 		st.session_state.search_query = query
 		st.session_state.search_type = search_type
 		st.session_state.search_selected_tenant = selected_tenant
-		if search_type == "Hybrid":
-			st.session_state.search_alpha = alpha
-		st.session_state.search_limit = limit
+		st.session_state.search_limit = limit_val
 
-		# Perform search based on type
-		if search_type == "Hybrid":
-			if st.session_state.selected_target_vector:
-				success, message, df, time_taken = hybrid_search_with_multiple_vectors(
-					selected_collection,
-					target_vector,
-					query,
-					alpha,
-					limit,
-					tenant_name=selected_tenant
-				)
-			else:
-				success, message, df, time_taken = hybrid_search(
-					selected_collection,
-					query,
-					alpha,
-					limit,
-					tenant_name=selected_tenant
-				)
-		elif search_type == "Vector":
-			try:
+		# Perform search
+		try:
+			if search_type == "Hybrid":
+				if st.session_state.selected_target_vector:
+					success, message, df, time_taken = hybrid_search_with_multiple_vectors(
+						selected_collection,
+						target_vector,
+						query,
+						alpha,
+						limit_val,
+						tenant_name=selected_tenant,
+					)
+				else:
+					success, message, df, time_taken = hybrid_search(
+						selected_collection,
+						query,
+						alpha,
+						limit_val,
+						tenant_name=selected_tenant,
+					)
+			elif search_type == "Vector":
 				vector_list = parse_vector_input(query)
-				
 				if st.session_state.selected_target_vector:
 					success, message, df, time_taken = vector_search_with_multiple_vectors(
 						selected_collection,
 						target_vector,
 						vector_list,
-						limit,
-						tenant_name=selected_tenant
+						limit_val,
+						tenant_name=selected_tenant,
 					)
 				else:
 					success, message, df, time_taken = vector_search(
 						selected_collection,
 						vector_list,
-						limit,
-						tenant_name=selected_tenant
+						limit_val,
+						tenant_name=selected_tenant,
 					)
-			except ValueError as e:
-				st.error(f"Invalid vector format: {e}")
-				return
-		else:
-			success, message, df, time_taken = keyword_search(
-				selected_collection,
-				query,
-				limit,
-				tenant_name=selected_tenant
-			)
+			else:
+				success, message, df, time_taken = keyword_search(
+					selected_collection,
+					query,
+					limit_val,
+					tenant_name=selected_tenant,
+				)
+		except ValueError as e:
+			st.error(f"Invalid vector format: {e}")
+			return
 
 		# Display results
 		display_results(success, message, df, time_taken)
 
 # Function to display results
 def display_results(success: bool, message: str, df, time_taken: float):
-	print("display_results() called")
 	if success:
 		# Create a container for the success message and timing
 		col1, col2 = st.columns([3, 1])
