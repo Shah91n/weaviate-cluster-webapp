@@ -4,7 +4,7 @@ import pandas as pd
 import logging
 from typing import Optional, Tuple
 from weaviate.classes.query import MetadataQuery
-from utils.connection.weaviate_connection_manager import get_weaviate_client
+from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 

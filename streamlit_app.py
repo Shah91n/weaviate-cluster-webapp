@@ -1,11 +1,9 @@
 import streamlit as st
-from utils.connection.weaviate_client import initialize_weaviate_connection, disconnect_weaviate
-from utils.cluster.cluster_operations_handlers import action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_diagnose
-from utils.sidebar.navigation import navigate
-from utils.connection.weaviate_connection_manager import get_weaviate_manager
-from utils.sidebar.helper import update_side_bar_labels, clear_session_state
-from utils.page_config import set_custom_page_config
-import time
+from core.connection.weaviate_client import initialize_weaviate_connection, disconnect_weaviate
+from pages.cluster.cluster_operations_handlers import action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_diagnose
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels, clear_session_state
+from pages.utils.page_config import set_custom_page_config
 
 # --------------------------------------------------------------------------
 # Initialize session state
@@ -212,22 +210,29 @@ if not st.session_state.client_ready:
             vectorizer_integration_keys["X-HuggingFace-Api-Key"] = st.session_state.huggingface_key
 
         if st.session_state.use_local:
-            if initialize_weaviate_connection(
+            success, details = initialize_weaviate_connection(
                 use_local=True,
                 http_port_endpoint=st.session_state.local_http_port,
                 grpc_port_endpoint=st.session_state.local_grpc_port,
                 cluster_api_key=st.session_state.local_api_key,
                 vectorizer_integration_keys=vectorizer_integration_keys
-            ):
+            )
+            if success:
                 st.sidebar.success("Local connection successful!")
-                st.session_state.active_endpoint = f"http://localhost:{st.session_state.local_http_port}"
+                st.session_state.client_ready = details.get("client_ready", True)
+                st.session_state.server_version = details.get("server_version", "N/A")
+                st.session_state.active_endpoint = details.get("endpoint", f"http://localhost:{st.session_state.local_http_port}")
                 st.session_state.active_api_key = st.session_state.local_api_key
+                st.session_state.active_openai_key = st.session_state.openai_key
+                st.session_state.active_cohere_key = st.session_state.cohere_key
+                st.session_state.active_huggingface_key = st.session_state.huggingface_key
                 st.rerun()
             else:
-                st.sidebar.error("Connection failed!")
+                st.session_state.client_ready = False
+                st.sidebar.error(details.get("error", "Connection failed!"))
 
         elif st.session_state.use_custom:
-            if initialize_weaviate_connection(
+            success, details = initialize_weaviate_connection(
                 use_custom=True,
                 http_host_endpoint=st.session_state.custom_http_host,
                 http_port_endpoint=st.session_state.custom_http_port,
@@ -236,14 +241,21 @@ if not st.session_state.client_ready:
                 custom_secure=st.session_state.custom_secure,
                 cluster_api_key=st.session_state.custom_api_key,
                 vectorizer_integration_keys=vectorizer_integration_keys
-            ):
+            )
+            if success:
                 st.sidebar.success("Custom Connection successful!")
+                st.session_state.client_ready = details.get("client_ready", True)
+                st.session_state.server_version = details.get("server_version", "N/A")
                 protocol = "https" if st.session_state.custom_secure else "http"
-                st.session_state.active_endpoint = f"{protocol}://{st.session_state.custom_http_host}:{st.session_state.custom_http_port}"
+                st.session_state.active_endpoint = details.get("endpoint", f"{protocol}://{st.session_state.custom_http_host}:{st.session_state.custom_http_port}")
                 st.session_state.active_api_key = st.session_state.custom_api_key
+                st.session_state.active_openai_key = st.session_state.openai_key
+                st.session_state.active_cohere_key = st.session_state.cohere_key
+                st.session_state.active_huggingface_key = st.session_state.huggingface_key
                 st.rerun()
             else:
-                st.sidebar.error("Connection failed!")
+                st.session_state.client_ready = False
+                st.sidebar.error(details.get("error", "Connection failed!"))
         else: # Cloud
             cloud_endpoint = st.session_state.cloud_endpoint
             if cloud_endpoint and not cloud_endpoint.startswith('https://'):
@@ -252,23 +264,33 @@ if not st.session_state.client_ready:
             if not cloud_endpoint or not st.session_state.cloud_api_key:
                 st.sidebar.error("Please insert the cluster endpoint and API key!")
             else:
-                if initialize_weaviate_connection(
+                success, details = initialize_weaviate_connection(
                     cluster_endpoint=cloud_endpoint,
                     cluster_api_key=st.session_state.cloud_api_key,
                     vectorizer_integration_keys=vectorizer_integration_keys
-                ):
+                )
+                if success:
                     st.sidebar.success("Cloud Connection successful!")
-                    st.session_state.active_endpoint = cloud_endpoint
+                    st.session_state.client_ready = details.get("client_ready", True)
+                    st.session_state.server_version = details.get("server_version", "N/A")
+                    st.session_state.active_endpoint = details.get("endpoint", cloud_endpoint)
                     st.session_state.active_api_key = st.session_state.cloud_api_key
+                    st.session_state.active_openai_key = st.session_state.openai_key
+                    st.session_state.active_cohere_key = st.session_state.cohere_key
+                    st.session_state.active_huggingface_key = st.session_state.huggingface_key
                     st.rerun()
                 else:
-                    st.sidebar.error("Connection failed!")
+                    st.session_state.client_ready = False
+                    st.sidebar.error(details.get("error", "Connection failed!"))
     # print("DEBUG session_state (On Connect):", dict(st.session_state)) # uncomment during development to debug session state
 else:
     if st.sidebar.button("Disconnect", width="stretch", type="primary"):
-        st.toast('Session, states and cache cleared! Weaviate client disconnected successfully!', icon='🔴')
-        disconnect_weaviate()
-        st.rerun()
+        success, message = disconnect_weaviate()
+        if success:
+            st.toast('Session, states and cache cleared! Weaviate client disconnected successfully!', icon='🔴')
+            clear_session_state()
+        else:
+            st.sidebar.error(message)
     st.sidebar.info("Disconnect Button does clear all session states and cache, and disconnect the Weaviate client to server if connected.")
 
 # Essential run for the first time

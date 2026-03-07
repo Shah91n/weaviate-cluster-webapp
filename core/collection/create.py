@@ -5,9 +5,8 @@ import logging
 from typing import List, Dict, Any, Optional
 from weaviate.util import generate_uuid5
 from weaviate.classes.config import Configure
-from utils.cluster.collection import get_schema
-from utils.connection.weaviate_connection_manager import get_weaviate_client
-import streamlit as st
+from core.cluster.collection import get_schema
+from core.connection.weaviate_connection_manager import get_weaviate_client
 import re
 
 logger = logging.getLogger(__name__)
@@ -47,18 +46,23 @@ def validate_file_format(file_content: str, file_type: str) -> tuple[bool, str, 
 		return False, f"Error parsing file: {str(e)}", None
 
 # Check if required API keys are present for the selected vectorizer
-def check_vectorizer_keys(vectorizer: str) -> tuple[bool, str]:
+def check_vectorizer_keys(vectorizer: str, integration_keys: Optional[Dict[str, str]] = None) -> tuple[bool, str]:
 	logger.info(f"check_vectorizer_keys() called with vectorizer: {vectorizer}")
-	if vectorizer == "text2vec_openai" and not st.session_state.get("active_openai_key"):
+	integration_keys = integration_keys or {}
+	if vectorizer == "text2vec_openai" and "X-OpenAI-Api-Key" not in integration_keys:
 		return False, "OpenAI API key is required. Please reconnect with the key or select BYOV."
-	elif vectorizer == "text2vec_cohere" and not st.session_state.get("active_cohere_key"):
+	elif vectorizer == "text2vec_cohere" and "X-Cohere-Api-Key" not in integration_keys:
 		return False, "Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV."
-	elif vectorizer == "text2vec_huggingface" and not st.session_state.get("active_huggingface_key"):
+	elif vectorizer == "text2vec_huggingface" and "X-HuggingFace-Api-Key" not in integration_keys:
 		return False, "HuggingFace API key is required. Please reconnect with the key or select BYOV."
 	return True, ""
 
 # Create a new collection
-def create_collection(collection_name: str, vectorizer: str) -> tuple[bool, str]:
+def create_collection(
+	collection_name: str,
+	vectorizer: str,
+	integration_keys: Optional[Dict[str, str]] = None,
+) -> tuple[bool, str]:
 	logger.info(f"create_collection() called with collection_name: {collection_name}, vectorizer: {vectorizer}")
 	try:
 		client = get_weaviate_client()
@@ -67,7 +71,7 @@ def create_collection(collection_name: str, vectorizer: str) -> tuple[bool, str]
 			return False, f"Collection '{collection_name}' already exists"
 
 		# Check if required API keys are present
-		has_keys, key_message = check_vectorizer_keys(vectorizer)
+		has_keys, key_message = check_vectorizer_keys(vectorizer, integration_keys)
 		if not has_keys:
 			return False, key_message
 

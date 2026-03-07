@@ -1,12 +1,12 @@
 import streamlit as st
 import json
 from datetime import datetime, date
-from utils.objects.update_object import get_object_in_collection, display_object_as_table, get_object_in_tenant, update_object_properties
-from utils.collections.update_collection_config import get_collection_config, update_description_and_inverted_index, update_multi_tenancy_and_replication, update_hnsw_vector_index, update_pq_quantizer
-from utils.sidebar.navigation import navigate
-from utils.sidebar.helper import update_side_bar_labels
-from utils.cluster.collection import fetch_collection_config, list_collections
-from utils.page_config import set_custom_page_config
+from core.object.update_object import get_object_in_collection, display_object_as_table, get_object_in_tenant, update_object_properties
+from core.collection.update_collection_config import get_collection_config, update_description_and_inverted_index, update_multi_tenancy_and_replication, update_hnsw_vector_index, update_pq_quantizer
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels
+from core.cluster.collection import fetch_collection_config, list_collections
+from pages.utils.page_config import set_custom_page_config
 from weaviate.classes.config import PQEncoderType, PQEncoderDistribution, VectorFilterStrategy, StopwordsPreset
 
 # Function to map schema properties to their types

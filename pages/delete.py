@@ -1,9 +1,10 @@
 import streamlit as st
-from utils.sidebar.navigation import navigate
-from utils.sidebar.helper import update_side_bar_labels
-from utils.collections.read_all_objects import list_all_collections, get_tenant_names
-from utils.collections.delete import delete_collections, delete_tenants_from_collection
-from utils.page_config import set_custom_page_config
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels
+from core.cluster.collection import list_collections
+from core.object.read import get_tenant_names
+from core.collection.delete import delete_collections, delete_tenants_from_collection
+from pages.utils.page_config import set_custom_page_config
 
 def initialize_session_state():
 	"""Initialize session state variables"""
@@ -118,9 +119,7 @@ def handle_mt_collection_selection():
 def get_all_collections_and_tenants():
 	"""Main function to display and manage collections"""
 	# Refresh collections list
-	collections = list_all_collections()
-	if not isinstance(collections, list):
-		collections = list(collections.keys())
+	collections = list_collections()
 	collections.sort()
 	st.session_state.collections_list = collections
 

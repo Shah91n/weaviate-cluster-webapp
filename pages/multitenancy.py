@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-from utils.sidebar.navigation import navigate
-from utils.sidebar.helper import update_side_bar_labels
-from utils.multitenancy.tenantdetails import get_tenant_details, get_multitenancy_collections, aggregate_tenant_states
-from utils.cluster.collection import get_schema
-from utils.page_config import set_custom_page_config
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels
+from core.multitenancy.tenantdetails import get_tenant_details, get_multitenancy_collections, aggregate_tenant_states
+from core.cluster.collection import get_schema
+from pages.utils.page_config import set_custom_page_config
 
 #Displays UI for multi-tenancy collections.	Returns True if MT collections are found, False otherwise.
 def display_multitenancy():

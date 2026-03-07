@@ -1,12 +1,13 @@
 import streamlit as st
-from utils.search.hybrid import hybrid_search, hybrid_search_with_multiple_vectors
-from utils.search.vector import vector_search, vector_search_with_multiple_vectors, parse_vector_input
-from utils.search.keyword import keyword_search
-from utils.cluster.collection import list_collections
-from utils.collections.read_all_objects import get_tenant_names
-from utils.page_config import set_custom_page_config
-from utils.sidebar.navigation import navigate
-from utils.sidebar.helper import update_side_bar_labels
+from core.search.hybrid import hybrid_search, hybrid_search_with_multiple_vectors
+from core.search.vector import vector_search, vector_search_with_multiple_vectors, parse_vector_input
+from core.search.keyword import keyword_search
+from core.cluster.collection import list_collections
+from core.object.read import get_tenant_names
+from pages.utils.page_config import set_custom_page_config
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels
+from core.connection.weaviate_connection_manager import get_weaviate_client
 
 # Initialize session state variables
 def initialize_session_state():
@@ -54,7 +55,6 @@ def display_search_interface():
 		st.session_state.search_selected_tenant = None
 
 	# Get the collection and check if the collection has named vectors
-	from utils.connection.weaviate_connection_manager import get_weaviate_client
 	client = get_weaviate_client()
 	collection = client.collections.use(selected_collection)
 	collection_config = collection.config.get()
