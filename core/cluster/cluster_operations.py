@@ -1,9 +1,8 @@
 import requests
 import pandas as pd
 from collections import defaultdict
-import streamlit as st
 import logging
-from utils.connection.weaviate_connection_manager import get_weaviate_client
+from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 

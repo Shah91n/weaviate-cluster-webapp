@@ -1,13 +1,7 @@
-"""
-Weaviate Client Initialization - Streamlit Integration Layer
-
-This module bridges the singleton connection manager with Streamlit's session state.
-It handles connection initialization and session state updates.
-"""
+"""Weaviate client initialization service layer."""
 
 import logging
-import streamlit as st
-from utils.connection.weaviate_connection_manager import get_weaviate_manager
+from core.connection.weaviate_connection_manager import get_weaviate_manager
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +16,10 @@ def initialize_weaviate_connection(
 	http_port_endpoint=None,
 	grpc_host_endpoint=None,
 	grpc_port_endpoint=None,
-	custom_secure=False
-) -> bool:
+	custom_secure=False,
+) -> tuple[bool, dict]:
 	"""
-	Initialize Weaviate connection via singleton manager and update session state.
+	Initialize Weaviate connection via singleton manager.
 	
 	Parameters
 	----------
@@ -52,8 +46,8 @@ def initialize_weaviate_connection(
 	
 	Returns
 	-------
-	bool
-		True if connection successful, False otherwise
+	tuple[bool, dict]
+		(success, details)
 	"""
 	try:
 		logger.info("Initializing Weaviate connection")
@@ -73,44 +67,45 @@ def initialize_weaviate_connection(
 		)
 
 		if success:
-			# Update session state with connection info
+			endpoint = manager.get_endpoint()
 			client = manager.client
-			st.session_state.client_ready = manager.is_ready()
-			st.session_state.active_endpoint = manager.get_endpoint()
+			server_version = "N/A"
 
 			# Get version info
 			try:
 				metadata = client.get_meta()
-				st.session_state.server_version = metadata.get("version", "N/A")
+				server_version = metadata.get("version", "N/A")
 			except Exception as e:
 				logger.warning(f"Could not retrieve version info: {e}")
-				st.session_state.server_version = "N/A"
 
 			logger.info("Weaviate connection successful")
-			return True
+			return True, {
+				"client_ready": manager.is_ready(),
+				"endpoint": endpoint,
+				"server_version": server_version,
+			}
 		else:
-			st.sidebar.error("Failed to establish connection to Weaviate")
-			st.session_state.client_ready = False
-			return False
+			return False, {
+				"client_ready": False,
+				"error": "Failed to establish connection to Weaviate",
+			}
 
 	except Exception as e:
 		logger.error(f"Connection Error: {e}")
-		st.sidebar.error(f"Connection Error: {e}")
-		st.session_state.client_ready = False
-		return False
+		return False, {
+			"client_ready": False,
+			"error": f"Connection Error: {e}",
+		}
 
 
-def disconnect_weaviate():
-	"""Disconnect from Weaviate and clear session state"""
+def disconnect_weaviate() -> tuple[bool, str]:
+	"""Disconnect from Weaviate."""
 	try:
 		logger.info("Disconnecting from Weaviate")
 		manager = get_weaviate_manager()
 		manager.disconnect()
-		
-		# Clear session state
-		for key in list(st.session_state.keys()):
-			del st.session_state[key]
-		
 		logger.info("Weaviate disconnected and session cleared")
+		return True, "Disconnected"
 	except Exception as e:
 		logger.error(f"Error during disconnect: {e}")
+		return False, f"Error during disconnect: {e}"

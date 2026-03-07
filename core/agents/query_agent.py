@@ -1,10 +1,9 @@
-import streamlit as st
 import io
 import contextlib
 import re
 import logging
 from typing import List, Optional, Any
-from utils.connection.weaviate_connection_manager import get_weaviate_client
+from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 
@@ -98,28 +97,3 @@ def extract_known_fields(response: Any) -> dict:
                 pass
     return data
 
-
-def render_response(response: Any):
-    """Render the agent response in Streamlit using blocks approximating display() plus structured data."""
-    display_text = capture_display(response)
-    structured = extract_known_fields(response)
-
-    st.markdown("### 🧠 Agent Answer")
-    # Try an 'answer' field first
-    answer = structured.get("answer")
-    if answer:
-        st.success(answer)
-
-    sanitized = sanitize_display(display_text)
-    # Single simple expander with ANSI stripped raw text
-    with st.expander("Response", expanded=False):
-        st.code(sanitized, language="text")
-
-    # Show structured sections if present
-    if structured:
-        st.markdown("##### 📦 Additional Sections")
-        for key, val in structured.items():
-            if key == "answer":
-                continue
-            with st.expander(key.title(), expanded=False):
-                st.write(val)

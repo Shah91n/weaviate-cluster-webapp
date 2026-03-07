@@ -1,5 +1,5 @@
 import streamlit as st
-from utils.collections.create import (
+from core.collection.create import (
 	get_supported_vectorizers,
 	validate_file_format,
 	create_collection,
@@ -7,9 +7,9 @@ from utils.collections.create import (
 	get_collection_info,
 	get_collection_objects
 )
-from utils.page_config import set_custom_page_config
-from utils.sidebar.navigation import navigate
-from utils.sidebar.helper import update_side_bar_labels
+from pages.utils.page_config import set_custom_page_config
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels
 
 # initialize session state
 def initialize_session_state():
@@ -32,11 +32,11 @@ def create_collection_form():
 		)
 
 		# Show warnings for missing API keys
-		if selected_vectorizer == "text2vec_openai" and not st.session_state.get("active_openai_key"):
+		if selected_vectorizer == "text2vec_openai" and not st.session_state.get("openai_key"):
 			st.warning("⚠️ OpenAI API key is required. Please reconnect with the key or select BYOV.")
-		elif selected_vectorizer == "text2vec_cohere" and not st.session_state.get("active_cohere_key"):
+		elif selected_vectorizer == "text2vec_cohere" and not st.session_state.get("cohere_key"):
 			st.warning("⚠️ Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV.")
-		elif selected_vectorizer == "text2vec_huggingface" and not st.session_state.get("active_huggingface_key"):
+		elif selected_vectorizer == "text2vec_huggingface" and not st.session_state.get("huggingface_key"):
 			st.warning("⚠️ HuggingFace API key is required. Please reconnect with the key or select BYOV.")
 
 		# File upload
@@ -62,7 +62,19 @@ def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 		return
 
 	# Create collection
-	success, message = create_collection(collection_name, selected_vectorizer)
+	integration_keys = {}
+	if st.session_state.get("openai_key"):
+		integration_keys["X-OpenAI-Api-Key"] = st.session_state.openai_key
+	if st.session_state.get("cohere_key"):
+		integration_keys["X-Cohere-Api-Key"] = st.session_state.cohere_key
+	if st.session_state.get("huggingface_key"):
+		integration_keys["X-HuggingFace-Api-Key"] = st.session_state.huggingface_key
+
+	success, message = create_collection(
+		collection_name,
+		selected_vectorizer,
+		integration_keys=integration_keys,
+	)
 	if not success:
 		st.error(message)
 		return

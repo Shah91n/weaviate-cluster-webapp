@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-from utils.sidebar.navigation import navigate
-from utils.sidebar.helper import update_side_bar_labels
-from utils.page_config import set_custom_page_config
-from utils.rbac.read import (
+from pages.utils.navigation import navigate
+from pages.utils.helper import update_side_bar_labels
+from pages.utils.page_config import set_custom_page_config
+from core.rbac.read import (
 	list_all_users,
 	list_all_roles,
 	list_all_permissions,

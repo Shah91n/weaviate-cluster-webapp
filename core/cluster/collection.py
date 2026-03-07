@@ -1,8 +1,7 @@
 import pandas as pd
 import logging
-import streamlit as st
 import requests
-from utils.connection.weaviate_connection_manager import get_weaviate_client
+from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +19,7 @@ def get_collectios_count():
 		return 0
 
 
-# Aggregate collections. Caches the results for 1 hour (Feel free to change).
-@st.cache_data(ttl=3600)
+# Aggregate collections.
 def aggregate_collections():
 	logger.info("aggregate_collections() called")
 	try:

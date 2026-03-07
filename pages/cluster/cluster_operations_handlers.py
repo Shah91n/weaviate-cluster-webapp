@@ -3,9 +3,9 @@ import streamlit as st
 import requests
 import time
 import logging
-from utils.cluster.collection import aggregate_collections, get_schema, list_collections, process_collection_config, fetch_collection_config, get_collectios_count
-from utils.cluster.cluster_operations import fetch_cluster_statistics, process_statistics, get_shards_info, process_shards_data, get_metadata, diagnose_schema, check_shard_consistency
-from utils.connection.weaviate_connection_manager import get_weaviate_client
+from core.cluster.collection import aggregate_collections, get_schema, list_collections, process_collection_config, fetch_collection_config, get_collectios_count
+from core.cluster.cluster_operations import fetch_cluster_statistics, process_statistics, get_shards_info, process_shards_data, get_metadata, diagnose_schema, check_shard_consistency
+from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 

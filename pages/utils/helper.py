@@ -1,6 +1,6 @@
 import streamlit as st
 import logging
-from utils.connection.weaviate_connection_manager import get_weaviate_manager
+from core.connection.weaviate_connection_manager import get_weaviate_manager
 
 logger = logging.getLogger(__name__)
 
