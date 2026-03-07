@@ -8,10 +8,10 @@
 Interact with and manage Weaviate Cluster operations. This app provides tools to inspect shards, view collections & tenants, explore schemas, analyze cluster statistics, and interact with objects.
 
 <a href="https://weaviatecluster.streamlit.app/">
-  Visit Weaviate Cluster WebApp
+  Visit Weaviate Cluster WebApp (It's recommended to run it locally, do not use it on Streamlit cloud)
 </a>
 
-<img width="1840" height="793" alt="image" src="https://github.com/user-attachments/assets/f15cc87a-b1b6-4d79-8964-0d2068760466" />
+<img width="1879" height="815" alt="image" src="https://github.com/user-attachments/assets/c69c0c17-49a1-453c-b7e7-76b5fff736d3" />
 
 ## Features
 
