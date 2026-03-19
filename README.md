@@ -13,7 +13,7 @@ Use it to look up data, browse collections, diagnose schema health, inspect clus
   Visit Weaviate Cluster WebApp (It's recommended to run it locally, do not use it on Streamlit cloud)
 </a>
 
-<img width="1879" height="815" alt="image" src="https://github.com/user-attachments/assets/c69c0c17-49a1-453c-b7e7-76b5fff736d3" />
+<img width="1900" height="872" alt="image" src="https://github.com/user-attachments/assets/3ae3a762-a5d8-48dd-8253-5bf3a30945f5" />
 
 ## Features
 
