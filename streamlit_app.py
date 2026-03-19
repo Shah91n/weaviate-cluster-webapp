@@ -282,7 +282,6 @@ if not st.session_state.client_ready:
                 else:
                     st.session_state.client_ready = False
                     st.sidebar.error(details.get("error", "Connection failed!"))
-    # print("DEBUG session_state (On Connect):", dict(st.session_state)) # uncomment during development to debug session state
 else:
     if st.sidebar.button("Disconnect", width="stretch", type="primary"):
         success, message = disconnect_weaviate()
@@ -299,7 +298,6 @@ update_side_bar_labels()
 # --------------------------------------------------------------------------
 # Main Page Content (Cluster Operations)
 # --------------------------------------------------------------------------
-st.markdown("###### ⚠️ Important: This tool is designed and tested on the latest Weaviate DB version. Some features may not be compatible with older versions. Please ensure you are using the latest stable version of Weaviate DB for optimal performance.")
 st.markdown("Aggregation & Read Data is cached in the session state for an hour - to clear the cache either clear the cache in the Streamlit Developer Options or Disconnect then reconnect again.")
 
 # --------------------------------------------------------------------------
@@ -314,10 +312,10 @@ button_actions = {
     "nodes": action_nodes_and_shards,
     "aggregate_collections_tenants": action_aggregate_collections_tenants,
     "collection_properties": action_collection_schema,
-    "collections_configuration": lambda: action_collections_configuration(st.session_state.active_endpoint, st.session_state.active_api_key),
-    "statistics": lambda: action_statistics(st.session_state.active_endpoint, st.session_state.active_api_key),
-    "metadata": lambda: action_metadata(st.session_state.active_endpoint, st.session_state.active_api_key),
-    "diagnose": lambda: action_diagnose(st.session_state.active_endpoint, st.session_state.active_api_key)
+    "collections_configuration": action_collections_configuration,
+    "statistics": action_statistics,
+    "metadata": action_metadata,
+    "diagnose": action_diagnose
 }
 
 with col1:

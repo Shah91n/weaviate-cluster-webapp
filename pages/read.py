@@ -3,7 +3,7 @@ import math
 import pandas as pd
 import streamlit as st
 
-from core.cluster.collection import list_collections
+from core.collection.overview import list_collections
 from core.object.read import get_tenant_names, read_objects_batch
 from pages.utils.page_config import set_custom_page_config
 from pages.utils.helper import update_side_bar_labels

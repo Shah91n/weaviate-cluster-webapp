@@ -4,6 +4,16 @@ from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 
+def delete_all_collections():
+	logger.info("delete_all_collections() called")
+	try:
+		client = get_weaviate_client()
+		client.collections.delete_all()
+		return True, "Successfully deleted all collections."
+	except Exception as e:
+		logger.error(f"Error deleting all collections: {str(e)}")
+		return False, f"Error deleting all collections: {str(e)}"
+
 def delete_collections(collection_names):
 	logger.info(f"delete_collections() called with: {collection_names}")
 	try:

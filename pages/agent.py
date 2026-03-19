@@ -2,7 +2,7 @@ import streamlit as st
 from pages.utils.page_config import set_custom_page_config
 from pages.utils.navigation import navigate
 from pages.utils.helper import update_side_bar_labels
-from core.cluster.collection import list_collections
+from core.collection.overview import list_collections
 from core.agents.query_agent import run_query_agent, capture_display, extract_known_fields, sanitize_display
 
 

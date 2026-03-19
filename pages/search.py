@@ -2,7 +2,7 @@ import streamlit as st
 from core.search.hybrid import hybrid_search, hybrid_search_with_multiple_vectors
 from core.search.vector import vector_search, vector_search_with_multiple_vectors, parse_vector_input
 from core.search.keyword import keyword_search
-from core.cluster.collection import list_collections
+from core.collection.overview import list_collections
 from core.object.read import get_tenant_names
 from pages.utils.page_config import set_custom_page_config
 from pages.utils.navigation import navigate

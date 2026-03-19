@@ -1,9 +1,9 @@
 import streamlit as st
 from pages.utils.navigation import navigate
 from pages.utils.helper import update_side_bar_labels
-from core.cluster.collection import list_collections
+from core.collection.overview import list_collections
 from core.object.read import get_tenant_names
-from core.collection.delete import delete_collections, delete_tenants_from_collection
+from core.collection.delete import delete_collections, delete_tenants_from_collection, delete_all_collections
 from pages.utils.page_config import set_custom_page_config
 
 def initialize_session_state():
@@ -43,27 +43,14 @@ def handle_collection_selection():
 				else:
 					st.error(message)
 
-		# Collections in expanders
 		st.write("Select collections to delete:")
-
-		# Group collections by first letter for better organization
-		collections_by_letter = {}
-		for col in regular_collections:
-			first_letter = col[0].upper()
-			if first_letter not in collections_by_letter:
-				collections_by_letter[first_letter] = []
-			collections_by_letter[first_letter].append(col)
-
-		# Display collections grouped by letter in expanders
-		for letter in sorted(collections_by_letter.keys()):
-			with st.expander(f"📁 Collections - {letter}"):
-				# Display collections in this group
-				for col in sorted(collections_by_letter[letter]):
-					key = f"col_{col}"
-					if st.checkbox(col, key=key, value=col in st.session_state.selected_collections):
-						st.session_state.selected_collections.add(col)
-					else:
-						st.session_state.selected_collections.discard(col)
+		with st.container(height=400):
+			for col in sorted(regular_collections):
+				key = f"col_{col}"
+				if st.checkbox(col, key=key, value=col in st.session_state.selected_collections):
+					st.session_state.selected_collections.add(col)
+				else:
+					st.session_state.selected_collections.discard(col)
 	else:
 		st.info("No collections found")
 
@@ -130,6 +117,28 @@ def get_all_collections_and_tenants():
 		if tenants:
 			st.session_state.mt_collections[collection] = sorted(tenants)
 
+	# DANGER ZONE: Delete all collections
+	with st.expander("⚠️ DANGER ZONE — Delete ALL Collections", expanded=False):
+		st.error(
+			"🚨 CRITICAL WARNING: This will permanently wipe EVERY collection and ALL data "
+			"from the cluster. This action is IRREVERSIBLE. There is no undo. "
+			"Do NOT proceed unless you are absolutely certain and have the necessary administrator privileges."
+		)
+		confirm = st.checkbox(
+			"I understand this will permanently delete ALL collections and ALL data. This cannot be undone.",
+			key="delete_all_confirm"
+		)
+		if confirm:
+			if st.button("💀 DELETE ALL COLLECTIONS", type="primary", width="stretch", key="delete_all_btn"):
+				success, message = delete_all_collections()
+				if success:
+					st.success(message)
+					st.session_state.selected_collections.clear()
+					st.rerun()
+				else:
+					st.error(message)
+
+	st.markdown("---")
 	# Display collections sections
 	handle_collection_selection()
 	st.markdown("---")

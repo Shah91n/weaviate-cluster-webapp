@@ -1,4 +1,4 @@
-from typing import Any, List, Dict
+from typing import List, Dict
 import logging
 from core.connection.weaviate_connection_manager import get_weaviate_client
 
