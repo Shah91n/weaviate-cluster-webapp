@@ -23,7 +23,6 @@ ARCHITECTURE:
 import logging
 import threading
 import atexit
-import asyncio
 import weaviate
 from weaviate.classes.init import Auth, AdditionalConfig, Timeout
 from typing import Optional, Dict, Any

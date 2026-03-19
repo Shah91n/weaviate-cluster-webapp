@@ -5,7 +5,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from weaviate.util import generate_uuid5
 from weaviate.classes.config import Configure
-from core.cluster.collection import get_schema
+from core.collection.overview import get_schema
 from core.connection.weaviate_connection_manager import get_weaviate_client
 import re
 

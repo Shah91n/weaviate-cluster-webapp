@@ -1,3 +1,4 @@
+import logging
 import streamlit as st
 from core.collection.create import (
 	get_supported_vectorizers,
@@ -11,9 +12,11 @@ from pages.utils.page_config import set_custom_page_config
 from pages.utils.navigation import navigate
 from pages.utils.helper import update_side_bar_labels
 
+logger = logging.getLogger(__name__)
+
 # initialize session state
 def initialize_session_state():
-	print("initialize_session_state() called")
+	logger.info("initialize_session_state() called")
 	if 'collection_info' not in st.session_state:
 		st.session_state.collection_info = None
 
@@ -53,7 +56,7 @@ def create_collection_form():
 
 # Handle form submission
 def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
-	print("handle_form_submission() called")
+	logger.info("handle_form_submission() called")
 	if not collection_name:
 		st.error("Please enter a collection name")
 		return
@@ -124,7 +127,7 @@ def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 
 # Function to display collection information
 def display_collection_info():
-	print("display_collection_info() called")
+	logger.info("display_collection_info() called")
 	if not st.session_state.collection_info:
 		return
 

@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 from pages.utils.navigation import navigate
 from pages.utils.helper import update_side_bar_labels
 from pages.utils.page_config import set_custom_page_config

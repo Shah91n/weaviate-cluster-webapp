@@ -17,4 +17,5 @@ def navigate():
 	st.sidebar.page_link("pages/read.py", label="Read", icon="📁")
 	st.sidebar.page_link("pages/update.py", label="Update", icon="🗃️")
 	st.sidebar.page_link("pages/delete.py", label="Delete", icon="🗑️")
+	st.sidebar.page_link("pages/backup.py", label="Backup", icon="💾")
 	st.sidebar.markdown("---")

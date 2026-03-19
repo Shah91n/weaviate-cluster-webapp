@@ -3,9 +3,11 @@
 [![Weaviate](https://img.shields.io/static/v1?label=for&message=Weaviate%20%E2%9D%A4&color=green&style=flat-square)](https://weaviate.io/)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Shah91n/WeaviateDB-Cluster-WebApp?style=social)](https://github.com/Shah91n/WeaviateDB-Cluster-WebApp)
 [![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://weaviatecluster.streamlit.app/)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
 
-Interact with and manage Weaviate Cluster operations. This app provides tools to inspect shards, view collections & tenants, explore schemas, analyze cluster statistics, and interact with objects.
+A lightweight Streamlit web app built for developers who need a quick, visual way to manage and understand their Weaviate cluster. It's designed for **development, staging, and testing environments** — not for production-scale use.
+
+Use it to look up data, browse collections, diagnose schema health, inspect cluster state, and understand how your Weaviate instance is configured. It covers the basics well: general data lookup, collection analysis, replication and compression checks, RBAC inspection, and multi-tenancy browsing — all without writing a single query.
 
 <a href="https://weaviatecluster.streamlit.app/">
   Visit Weaviate Cluster WebApp
@@ -16,164 +18,110 @@ Interact with and manage Weaviate Cluster operations. This app provides tools to
 ## Features
 
 ### Connection
-- **Local**
-- **Custom**
-- **Cloud**
+Connect via three modes — all with optional vectorizer API key injection:
+- **Local** — Weaviate running on `localhost` (configurable HTTP/gRPC ports)
+- **Custom** — Any reachable Weaviate host with full HTTP/gRPC control
+- **Cloud** — Weaviate Cloud cluster via URL + API key
+- **Auto-Connect via URL params** — `?endpoint=<URL>&api_key=<KEY>`
 
-#### Vectorization
-- Weaviate Vectorizer
-- Support for OpenAI, Cohere, HuggingFace
-- Add API keys for vectorization providers (optional)
-- Vectorization during object updates
+Vectorizer integrations: OpenAI, Cohere, HuggingFace (keys injected as request headers at connect time).
 
 ### Cluster Management
-- **Shards & Nodes**
-  - View shard details across nodes
-  - View node details
-  - Update read-only shards to READY status (⚠️ Admin API-Key required)
-
-- **Collections & Tenants**
-  - View collections and their tenants
-  - Aggregate Collections & Tenants
-    - With Data cached
-  - Explore collection configurations
-  - View schema configuration
-  - Analyze cluster statistics and synchronization
-  - View cluster metadata & modules
-  - Analyze shard consistency
-  - Force repair collection objects across nodes
-  - Run schema diagnostics
+- **Nodes & Shards** — View node details, shard info, set read-only shards to READY (⚠️ requires admin key)
+- **Aggregate Collections & Tenants** — Object counts, empty collection/tenant detection
+- **Collection Properties** — Schema and property details per collection
+- **Collections Configuration** — Full collection config (vectorizer, index, module, replication)
+- **Raft Statistics** — RAFT consensus state, peer network, synchronization status
+- **Metadata** — Server version, enabled modules
+- **Diagnose** — Schema health checks (compression, replication factor, deletion strategy, shard consistency)
 
 ### RBAC
-  - View all users and their roles
-  - View all roles and their permission types
-  - View all permissions in detail
-  - Users & Permissions Report
+- Users, roles, permissions — individual and combined report views
 
-### **Multi Tenancy**
-  - View MT collections only and configurations
-    - With Data cached
-  - Analyze tenants in the collection and states
-  
+### Multi-Tenancy
+- Filter MT-only collections, view config, list tenants with activity states
+
 ### Object Operations
-- **Create** (⚠️ Admin API-Key required)
-  - Create new collections
-  - Supported Vectorizers (OpenAI, Cohere, HuggingFace)
-  - Batch upload data from CSV/JSON files
-
-- **Search**
-  - Hybrid search combining vector and keyword capabilities
-  - Keyword search (BM25) for exact matches
-  - Vector Search for similarity
-  - Adjustable alpha parameter (0.0-1.0) for hybrid search balance
-  - Performance metrics
-  - Detailed result metadata (scores, distances, timing)
-  - Support for all vectorized collections
-
-- **Read**
-  - View object data in collections/tenants
-  - Display data in tables including vectors
-    - With Data cached
-  - Download data as CSV files
-
-- **Update** (⚠️ Admin API-Key required)
-  - Edit collection configuration with support for all mutable parameters
-  - Update objects with optional vectorization
-  - Export object data to CSV format
-  - Verify object consistency across cluster nodes (supports up to 11 nodes)
-  - Real-time object validation and error handling
-
-- **Delete** (⚠️ Admin API-Key required)
-  - Delete collections and tenants
-  - Batch deletion support for multiple collections/tenants
+- **Create** — Create collections (5 vectorizers + BYOV), batch upload from CSV/JSON (⚠️ admin key required)
+- **Read** — Paginated object browser up to 1 000 objects, supports tenants, includes vectors
+- **Search** — Hybrid (BM25 + vector), keyword (BM25), and near-vector search with named-vector support, alpha tuning, and performance metrics
+- **Update** — Edit collection config (inverted index, replication, HNSW, PQ) and patch individual objects with type-aware field editors (⚠️ admin key required)
+- **Delete** — Delete one or more collections or tenants (⚠️ admin key required)
 
 ### Agent
-Ask natural language questions across one or more collections via the Agents API.
+Natural language Q&A over collections via the Weaviate Agents API.
+Requires `weaviate-client[agents]` (included in `requirements.txt`).
 
-Requirement: install the extra: `weaviate-client[agents]`.
+### Backup
+List backups stored in the cluster's cloud storage backend (S3, GCS, or Azure Blob Storage).
+The storage backend is auto-detected from the connected endpoint URL (`aws` → S3, `gcp` → GCS, `azure` → Azure).
+Displays: Backup ID, Status, Started At, Completed At, Size (GB), Collections included.
 
-UI Flow:
-1. Open Agent page.
-2. Select one or multiple collections.
-3. Enter question + optional system prompt / host / timeout.
-4. Run and inspect Answer, Structured Sections.
+---
 
-## Configuration
+## Architecture
 
-### How to Run It on Your Local Machine
-
-**Prerequisites**
-
-- Python 3.10 or higher
-- pip installed
-
-**Steps to Run**
-
-1. **Clone the repository:**
-
-    ```bash
-    git clone https://github.com/Shah91n/WeaviateCluster.git
-    cd WeaviateCluster
-    ```
-
-2. **Install the required dependencies:**
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. **Run the app:**
-
-    ```bash
-    streamlit run streamlit_app.py
-    ```
-
-If you haven't already created a `requirements.txt` file, here's what it should look like:
-
-```text
-streamlit
-weaviate-client
-weaviate-client[agents]
-requests
-pandas
-Pillow
+```
+streamlit_app.py               Entrypoint — connection UI + cluster dashboard
+core/                          Business logic (no Streamlit imports)
+  connection/                  Singleton client manager + init helpers
+  cluster/                     Nodes/shards, RAFT statistics, metadata, diagnostics (SDK only)
+  collection/                  Collection listing, schema, config fetch/processing, create, delete, update
+  object/                      Read and update individual objects
+  search/                      Hybrid, keyword, vector search
+  multitenancy/                Tenant listing and state aggregation
+  rbac/                        Users, roles, permissions
+  agents/                      QueryAgent wrapper
+  backup/                      Backup listing with auto-detected storage backend
+pages/                         Streamlit UI (one file per feature)
+  cluster/                     Cluster dashboard action handlers
+  utils/                       Navigation, page config, session helpers
+assets/                        Static files (logo)
 ```
 
-Or You can also run the Weaviate Cluster using Docker. Follow the steps below to build the Docker image and run the container:
+**Core layer** (`core/`) contains only pure business logic — no `st.*` calls ever.  
+**Pages layer** (`pages/`) contains only UI — no direct Weaviate SDK calls.  
+The singleton in `core/connection/weaviate_connection_manager.py` maintains one long-lived client per session.
 
-1. **Clone the repository:**
+---
 
-    ```bash
-    git clone https://github.com/Shah91n/WeaviateCluster.git
-    cd WeaviateCluster
-    ```
+## Setup
 
-2. **Build the Docker image:**
+### Prerequisites
+- Python 3.10+
+- A running Weaviate instance (local, custom, or cloud)
 
-    ```bash
-    docker build -t weaviateclusterapp:latest .
-    ```
+### Install & Run
+```bash
+git clone https://github.com/Shah91n/WeaviateDB-Cluster-WebApp.git
+cd WeaviateDB-Cluster-WebApp
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
 
-3. **Run the Docker container:**
+### Docker
+```bash
+docker build -t weaviateclusterapp:latest .
+docker run -p 8501:8501 --add-host=localhost:host-gateway weaviateclusterapp
+```
 
-    ```bash
-    docker run -p 8501:8501 --add-host=localhost:host-gateway weaviateclusterapp
-    ```
+Access the app at `http://localhost:8501`.
 
-This will start the Weaviate Cluster, and you can access it by navigating to `http://localhost:8501` in your web browser.
+### Local Weaviate (for testing)
+```bash
+docker run -p 8080:8080 -p 50051:50051 cr.weaviate.io/semitechnologies/weaviate:latest
+```
 
-### How to Run It on a Cloud Cluster
+---
 
-1. Provide the Weaviate endpoint.
-2. Provide the API key.
-3. Connect and enjoy!
+## Notes
 
-### Notes
+- This is a community project, not an official Weaviate product.
+- Read page caps at **1 000 objects** via the iterator API.
+- All cluster operations use the Weaviate Python client.
+- **USE AT YOUR OWN RISK** — always use an admin key only in trusted environments.
 
-This is a personal project and is not officially approved by the Weaviate organization. While functional, the code may not follow all best practices for Python programming or Streamlit. Suggestions and improvements are welcome!
+## Contributing
 
-**USE AT YOUR OWN RISK**: While this tool is designed for cluster operation and analysis, there is always a possibility of unknown bugs.
+Pull requests and suggestions are welcome!
 
-### Contributing
-
-Contributions are welcome through pull requests! Suggestions for improvements and best practices are highly appreciated.

@@ -1,3 +1,4 @@
+import logging
 import streamlit as st
 import json
 from datetime import datetime, date
@@ -5,34 +6,27 @@ from core.object.update_object import get_object_in_collection, display_object_a
 from core.collection.update_collection_config import get_collection_config, update_description_and_inverted_index, update_multi_tenancy_and_replication, update_hnsw_vector_index, update_pq_quantizer
 from pages.utils.navigation import navigate
 from pages.utils.helper import update_side_bar_labels
-from core.cluster.collection import fetch_collection_config, list_collections
+from core.collection.overview import fetch_collection_config, list_collections
 from pages.utils.page_config import set_custom_page_config
 from weaviate.classes.config import PQEncoderType, PQEncoderDistribution, VectorFilterStrategy, StopwordsPreset
 
+logger = logging.getLogger(__name__)
+
 # Function to map schema properties to their types
-def build_type_map_from_schema(schema):
+def build_type_map_from_schema(config):
 	type_map = {}
-	for prop in schema.get('properties', []):
-		name = prop.get('name')
-		data_type = prop.get('dataType', [])
-		# Handle array types
-		if isinstance(data_type, list) and len(data_type) == 1:
-			dt = data_type[0]
-			if dt.endswith('[]'):
-				base_type = dt[:-2]
-				type_map[name] = f'{base_type}_array'
-			else:
-				type_map[name] = dt
-		elif isinstance(data_type, list) and len(data_type) > 1:
-			# fallback: just use the first
-			dt = data_type[0]
-			if dt.endswith('[]'):
-				base_type = dt[:-2]
-				type_map[name] = f'{base_type}_array'
-			else:
-				type_map[name] = dt
+	if config is None:
+		return type_map
+	for prop in getattr(config, "properties", []):
+		name = getattr(prop, "name", None)
+		data_type = getattr(prop, "data_type", None)
+		if name is None or data_type is None:
+			continue
+		dt_str = data_type.value  # e.g. 'text', 'text[]', 'int', 'object[]'
+		if dt_str.endswith("[]"):
+			type_map[name] = dt_str[:-2] + "_array"
 		else:
-			type_map[name] = str(data_type)
+			type_map[name] = dt_str
 	return type_map
 
 # Function to parse values based on their type
@@ -88,7 +82,7 @@ def parse_value_by_type(value, type_name):
 
 # Function to format values for display
 def format_value_for_display(value, type_name):
-	print(f"format_value_for_display called")
+	logger.debug("format_value_for_display called")
 	if type_name.endswith('_array') or type_name == 'object':
 		return json.dumps(value, indent=2) if value else '[]' if type_name.endswith('_array') else '{}'
 	elif type_name == 'date':
@@ -118,7 +112,7 @@ def format_value_for_display(value, type_name):
 
 # Function to display the object as a table and edit its properties
 def get_object_details():
-	print(f"get_object_details called")
+	logger.info("get_object_details called")
 	collection_name = st.text_input("Collection Name")
 	object_uuid = st.text_input("Object UUID")
 	with_tenant = st.checkbox("Tenant", value=False)
@@ -141,17 +135,13 @@ def get_object_details():
 
 	# Fetch schema and build type map
 	if collection_name and (st.session_state.type_map is None or st.session_state.get('last_collection_name') != collection_name):
-		# Get API key and endpoint from session state
-		active_endpoint = st.session_state.active_endpoint
-		active_api_key = st.session_state.active_api_key
-		if active_api_key and active_endpoint:
-			schema = fetch_collection_config(active_endpoint, active_api_key, collection_name)
-			if schema and 'error' not in schema:
-				st.session_state.type_map = build_type_map_from_schema(schema)
-				st.session_state.last_collection_name = collection_name
-			else:
-				st.session_state.type_map = None
-				st.session_state.last_collection_name = None
+		config = fetch_collection_config(collection_name)
+		if config is not None:
+			st.session_state.type_map = build_type_map_from_schema(config)
+			st.session_state.last_collection_name = collection_name
+		else:
+			st.session_state.type_map = None
+			st.session_state.last_collection_name = None
 
 	# "Fetch Object"
 	if fetch_object_clicked:
@@ -329,7 +319,7 @@ def get_collection_configuration():
 
 # Update collection configuration UI
 def update_collection_config_ui(config):
-	print(f"update_collection_config_ui called")
+	logger.info("update_collection_config_ui called")
 	# 1) Description + Inverted Index
 	st.markdown("#### Description & Inverted Index Config")
 	description = getattr(config, 'description', "")
