@@ -66,7 +66,7 @@ core/                                Business logic only — no Streamlit import
                                      strip_ansi(), extract_known_fields()
   backup/
     list.py                          detect_backup_storage(), get_backup_backend_label(),
-                                     list_backups() [last 30 days]
+                                     list_backups() [top 10 most recent]
 pages/                               Streamlit UI — one file per feature, no SDK calls
   cluster/
     cluster_operations_handlers.py  action_nodes_and_shards(), action_aggregate_collections_tenants(),
@@ -218,7 +218,7 @@ Uses `client.users.db.list_all()` and `client.roles.list_all()`.
 
 ### Backup (`pages/backup.py` / `core/backup/list.py`)
 - Storage backend auto-detected from endpoint URL: `aws` → S3, `gcp` → GCS, `azure` → Azure Blob Storage
-- Lists backups from the last 30 days
+- Lists the 10 most recent backups (`list_backups(limit=10)`)
 - Columns: Backup ID, Status, Started At, Completed At, Size (GB), Collections
 
 ### Agent (`pages/agent.py` / `core/agents/query_agent.py`)

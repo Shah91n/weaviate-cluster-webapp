@@ -20,14 +20,14 @@ def main():
 
     if st.button("List Backups", width="stretch"):
         try:
-            backups = list_backups(days=30)
+            backups = list_backups(limit=10)
             if not backups:
-                st.info("No backups found in the last 30 days.")
+                st.info("No backups found.")
             else:
                 df = pd.DataFrame(backups)
                 st.subheader("💾 Backups")
                 st.dataframe(df, width="stretch")
-                st.caption(f"Showing {len(df)} backup(s) from the last 30 days")
+                st.caption(f"Showing {len(df)} most recent backup(s)")
         except ValueError as e:
             st.error(str(e))
         except Exception as e:

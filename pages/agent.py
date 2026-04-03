@@ -46,7 +46,7 @@ def display_agent_ui():
     collections = list_collections()
 
     if isinstance(collections, dict):  # error scenario
-        st.error(collections.use('error', 'Error fetching collections'))
+        st.error(collections.get('error', 'Error fetching collections'))
         return
 
     if not collections:

@@ -245,12 +245,8 @@ def check_shard_consistency(node_info):
 # Get cluster statistics
 def get_cluster_statistics():
     logger.info("get_cluster_statistics() called")
-    try:
-        client = get_weaviate_client()
-        return client.cluster.statistics()
-    except Exception as e:
-        logger.error(f"Error fetching cluster statistics: {e}")
-        return None
+    client = get_weaviate_client()
+    return client.cluster.statistics()
 
 
 # Process cluster statistics data

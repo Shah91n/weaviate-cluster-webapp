@@ -53,7 +53,7 @@ Natural language Q&A over collections via the Weaviate Agents API.
 Requires `weaviate-client[agents]` (included in `requirements.txt`).
 
 ### Backup
-List backups stored in the cluster's cloud storage backend (S3, GCS, or Azure Blob Storage).
+List the 10 most recent backups stored in the cluster's cloud storage backend (S3, GCS, or Azure Blob Storage).
 The storage backend is auto-detected from the connected endpoint URL (`aws` → S3, `gcp` → GCS, `azure` → Azure).
 Displays: Backup ID, Status, Started At, Completed At, Size (GB), Collections included.
 

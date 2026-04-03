@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from weaviate.backup.backup import BackupStorage
 from core.connection.weaviate_connection_manager import get_weaviate_client, get_weaviate_manager
 
@@ -45,13 +45,13 @@ def get_backup_backend_label() -> str:
     return _STORAGE_LABELS.get(storage, "Unknown")
 
 
-def list_backups(days: int = 30) -> List[Dict]:
-    """Retrieve backups from the last *days* days from the cluster's auto-detected storage backend.
+def list_backups(limit: int = 10) -> List[Dict]:
+    """Retrieve the most recent backups from the cluster's auto-detected storage backend.
 
     Parameters
     ----------
-    days : int
-        Number of days to look back from now (default: 30).
+    limit : int
+        Maximum number of most-recent backups to return (default: 10).
 
     Returns a list of dicts with keys:
         Backup ID, Status, Started At, Completed At, Size (GB), Collections
@@ -83,13 +83,8 @@ def list_backups(days: int = 30) -> List[Dict]:
         sort_by_starting_time_asc=False,
     )
 
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=days)
-    logger.info(f"Filtering backups to last {days} days (cutoff: {cutoff.isoformat()})")
-
     backups = []
     for b in results:
-        if b.started_at is not None and b.started_at < cutoff:
-            continue
         started = (
             b.started_at.strftime("%Y-%m-%d %H:%M:%S UTC")
             if b.started_at
@@ -118,5 +113,6 @@ def list_backups(days: int = 30) -> List[Dict]:
             }
         )
 
-    logger.info(f"Retrieved {len(backups)} backup(s) within the last {days} days")
+    backups = backups[:limit]
+    logger.info(f"Returning {len(backups)} most recent backup(s) (limit={limit})")
     return backups
