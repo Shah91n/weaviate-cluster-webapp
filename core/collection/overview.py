@@ -24,7 +24,7 @@ def aggregate_collections():
 		if collections:
 			collection_count = len(collections)
 			for collection_name in collections:
-				collection_row = {"Collection": collection_name, "Count": "", "Tenant": "", "Tenant Count": ""}
+				collection_row = {"Collection": collection_name, "Count": "", "Tenant": "", "Object Count": ""}
 				result_data.append(collection_row)
 				collection = client.collections.use(collection_name)
 				try:
@@ -47,11 +47,11 @@ def aggregate_collections():
 										"Tenant": tenant_name,
 										"Count": 0
 									})
-								tenant_row = {"Collection": "", "Count": "", "Tenant": tenant_name, "Tenant Count": objects_count}
+								tenant_row = {"Collection": "", "Count": "", "Tenant": tenant_name, "Object Count": objects_count}
 								result_data.append(tenant_row)
 							except Exception as e_inner:
 								logger.error(f"Error getting tenant count: {e_inner}")
-								tenant_row = {"Collection": "", "Count": "", "Tenant": tenant_name, "Tenant Count": f"ERROR: {e_inner}"}
+								tenant_row = {"Collection": "", "Count": "", "Tenant": tenant_name, "Object Count": f"ERROR: {e_inner}"}
 								result_data.append(tenant_row)
 
 						total_objects_multitenancy += collection_tenant_total

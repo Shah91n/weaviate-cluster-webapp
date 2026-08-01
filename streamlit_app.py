@@ -319,7 +319,7 @@ button_actions = {
 }
 
 with col1:
-    if st.button("Aggregate Collections & Tenants", width="stretch"):
+    if st.button("Aggregate Object Counts", width="stretch"):
         st.session_state["active_button"] = "aggregate_collections_tenants"
 
 with col2:
