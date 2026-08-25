@@ -1,38 +1,45 @@
-import streamlit as st
 import pandas as pd
-from pages.utils.navigation import navigate
-from pages.utils.helper import update_side_bar_labels
-from pages.utils.page_config import set_custom_page_config
-from core.backup.list import list_backups, get_backup_backend_label
+import streamlit as st
+
+from core.backup.list import get_backup_backend_label, list_backups
+from pages.utils import ui
+from pages.utils.page_config import page_header
 
 
 def main():
-    set_custom_page_config(page_title="Backup")
-    navigate()
-    if not st.session_state.get("client_ready"):
-        st.warning("Please Establish a connection to Weaviate in Cluster page!")
-        return
+	page_header("Backup")
+	ui.require_connection()
 
-    update_side_bar_labels()
+	backend_label = get_backup_backend_label()
+	st.caption(f"Storage backend detected from the endpoint: **{backend_label}**")
 
-    backend_label = get_backup_backend_label()
-    st.write(f"Detected storage backend: **{backend_label}**")
+	if st.button("List Backups", icon="💾", width="stretch"):
+		st.session_state["backup_listed"] = True
 
-    if st.button("List Backups", width="stretch"):
-        try:
-            backups = list_backups(limit=10)
-            if not backups:
-                st.info("No backups found.")
-            else:
-                df = pd.DataFrame(backups)
-                st.subheader("💾 Backups")
-                st.dataframe(df, width="stretch")
-                st.caption(f"Showing {len(df)} most recent backup(s)")
-        except ValueError as e:
-            st.error(str(e))
-        except Exception as e:
-            st.error(f"Failed to list backups: {e}")
+	if not st.session_state.get("backup_listed"):
+		return
+
+	try:
+		backups = list_backups(limit=10)
+	except ValueError as e:
+		st.error(str(e))
+		return
+	except Exception as e:
+		st.error(f"Failed to list backups: {e}")
+		return
+
+	if not backups:
+		st.info("No backups found.")
+		return
+
+	df = pd.DataFrame(backups)
+	ui.section("Backups", f"The {len(df)} most recent backup(s)", icon="💾")
+
+	if "Status" in df.columns:
+		statuses = df["Status"].value_counts().to_dict()
+		ui.metric_row([("Backups", len(df))] + [(str(k), int(v)) for k, v in statuses.items()])
+
+	ui.data_table(df)
 
 
-if __name__ == "__main__":
-    main()
+main()

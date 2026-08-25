@@ -1,5 +1,6 @@
 import logging
 import streamlit as st
+import pandas as pd
 from core.collection.create import (
 	get_supported_vectorizers,
 	validate_file_format,
@@ -8,9 +9,8 @@ from core.collection.create import (
 	get_collection_info,
 	get_collection_objects
 )
-from pages.utils.page_config import set_custom_page_config
-from pages.utils.navigation import navigate
-from pages.utils.helper import update_side_bar_labels
+from pages.utils import ui
+from pages.utils.page_config import page_header
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,6 @@ def create_collection_form():
 			st.warning("⚠️ OpenAI API key is required. Please reconnect with the key or select BYOV.")
 		elif selected_vectorizer == "text2vec_cohere" and not st.session_state.get("cohere_key"):
 			st.warning("⚠️ Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV.")
-		elif selected_vectorizer == "text2vec_huggingface" and not st.session_state.get("huggingface_key"):
-			st.warning("⚠️ HuggingFace API key is required. Please reconnect with the key or select BYOV.")
 
 		# File upload
 		uploaded_file = st.file_uploader(
@@ -70,8 +68,6 @@ def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 		integration_keys["X-OpenAI-Api-Key"] = st.session_state.openai_key
 	if st.session_state.get("cohere_key"):
 		integration_keys["X-Cohere-Api-Key"] = st.session_state.cohere_key
-	if st.session_state.get("huggingface_key"):
-		integration_keys["X-HuggingFace-Api-Key"] = st.session_state.huggingface_key
 
 	success, message = create_collection(
 		collection_name,
@@ -90,32 +86,10 @@ def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 
 	is_valid, validation_msg, data = validate_file_format(file_content, file_type)
 	if not is_valid:
-		st.error(f"File validation failed: {validation_msg}") 
+		st.error(f"File validation failed: {validation_msg}")
 		return
 
-	# Create a placeholder for progress updates
-	progress_placeholder = st.empty()
-
-	progress_messages = []
-
-	# Process the batch upload generator
-	for success, message, _ in batch_upload(collection_name, data):
-		progress_messages.append(message)
-		# Update progress display with HTML scrollable div on each yield
-		html_content = f"""
-		                <div style="
-		                	height: 300px;
-		                	overflow-y: auto;
-		                	border: 1px solid #ccc;
-		                	padding: 10px;
-		                ">
-		                {"<br>".join(progress_messages)}
-		                </div>
-		                """
-		progress_placeholder.markdown(html_content, unsafe_allow_html=True)
-
-	# After the loop finishes, the last message should indicate completion status
-	# The detailed failed objects will be printed to the terminal
+	summary = run_import(collection_name, data)
 
 	# Get collection info
 	success, info_msg, collection_info = get_collection_info(collection_name)
@@ -123,6 +97,56 @@ def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 		st.session_state.collection_info = collection_info
 	else:
 		st.error(info_msg)
+
+	return summary
+
+
+# Stream the file into the collection, showing live progress.
+def run_import(collection_name, data):
+	total = len(data)
+	summary = None
+	log_lines = []
+
+	with st.status(f"Importing {total} object(s)…", expanded=True) as status:
+		progress = st.progress(0.0)
+		log = st.empty()
+
+		for ok, message, payload in batch_upload(collection_name, data):
+			if payload and "queued" in payload:
+				progress.progress(min(payload["queued"] / max(payload["total"], 1), 1.0))
+			if payload and "succeeded" in payload:
+				summary = payload
+			# Only surface the notable lines; per-object chatter is not useful here.
+			if not ok or payload is None:
+				log_lines.append(("❌ " if not ok else "") + message)
+				log.markdown("\n\n".join(log_lines[-8:]))
+
+		progress.progress(1.0)
+		if summary and not summary["failed"] and not summary["aborted"]:
+			status.update(label=f"Imported {summary['total']} object(s)", state="complete")
+		else:
+			status.update(label="Import finished with errors", state="error")
+
+	if not summary:
+		return None
+
+	ui.metric_row([
+		("Objects in file", f"{summary['total']:,}"),
+		("Imported", f"{summary['succeeded']:,}"),
+		("Failed", f"{len(summary['failed']):,}"),
+	])
+
+	if summary["failed"]:
+		with st.expander(f"Failed objects ({len(summary['failed'])})", expanded=False):
+			failures = pd.DataFrame([
+				{"UUID": str(getattr(f, "original_uuid", "") or ""), "Message": str(getattr(f, "message", f))}
+				for f in summary["failed"][:200]
+			])
+			ui.data_table(failures)
+			if len(summary["failed"]) > 200:
+				st.caption(f"Showing the first 200 of {len(summary['failed'])} failures.")
+
+	return summary
 
 
 # Function to display collection information
@@ -133,34 +157,30 @@ def display_collection_info():
 
 	info = st.session_state.collection_info
 
-	# Button to view objects
-	if st.button(f"View {info['name']} Collection (100 Objects only)", use_container_width=True):
-		# Display only Object Count
-		st.metric("Object Count", info["object_count"])
+	ui.section(info["name"])
+	ui.metric_row([
+		("Objects", f"{info['object_count']:,}"),
+		("Properties", len(info["properties"])),
+		("Vectorizer", info["vectorizer"]),
+	])
 
-		# Then display the objects
+	if st.button(f"Preview {info['name']} (first 100 objects)", width="stretch"):
 		success, msg, df = get_collection_objects(info["name"])
 		if success:
-			st.dataframe(df)
-		else: 
+			ui.data_table(df, "No objects found.")
+		else:
 			st.error(msg)
 
+
 def main():
+	page_header("Create")
+	ui.require_connection()
 
-	set_custom_page_config(page_title="Create Collection")
+	initialize_session_state()
+	submit_button, collection_name, selected_vectorizer, uploaded_file = create_collection_form()
+	if submit_button:
+		handle_form_submission(collection_name, selected_vectorizer, uploaded_file)
+	display_collection_info()
 
-	navigate()
 
-	if st.session_state.get("client_ready"):
-		update_side_bar_labels()
-		initialize_session_state()
-		submit_button, collection_name, selected_vectorizer, uploaded_file = create_collection_form()
-		if submit_button:
-			handle_form_submission(collection_name, selected_vectorizer, uploaded_file)
-		display_collection_info()
-
-	else:
-		st.warning("Please Establish a connection to Weaviate in Cluster page!")
-
-if __name__ == "__main__":
-	main() 
+main()

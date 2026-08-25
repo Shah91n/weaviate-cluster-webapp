@@ -2,6 +2,7 @@ import pandas as pd
 from collections import defaultdict
 import logging
 from weaviate.classes.config import ReplicationDeletionStrategy
+from core.collection.vector_index import HFRESH, describe_vector_indexes
 from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
@@ -42,38 +43,35 @@ def diagnose_schema():
                 "replication": {"status": "ok", "details": []}
             }
 
-            # Compression check — prefer named vectors (vector_config), fall back to single vector_index_config
-            vector_config = getattr(col_config, "vector_config", None)
-            vector_index_config = getattr(col_config, "vector_index_config", None)
-
-            if vector_config:
-                for vec_name, named_vec in vector_config.items():
-                    vic = getattr(named_vec, "vector_index_config", None)
-                    quantizer = getattr(vic, "quantizer", None) if vic else None
-                    if quantizer is not None:
-                        q_type = type(quantizer).__name__.lstrip("_").replace("Config", "")
+            # Compression check — one entry per vector, normalised across the named-vector
+            # and legacy layouts and across all four index types. A dynamic index nests its
+            # quantizers under its hnsw/flat arms, so it must be unwrapped rather than read
+            # directly off the top-level config.
+            indexes = describe_vector_indexes(col_config)
+            if indexes:
+                for info in indexes:
+                    label = f"vector '{info.name}' ({info.index_type})"
+                    if info.index_type == HFRESH:
+                        # HFresh always carries RQ; it cannot be turned off or swapped.
                         collection_diagnostics["compression"]["details"].append(
-                            f"✅ vectorConfig['{vec_name}']: Compression enabled ({q_type})"
+                            f"✅ {label}: RQ compression built in and always on"
                         )
-                    else:
-                        collection_diagnostics["compression"]["status"] = "warning"
-                        collection_diagnostics["compression"]["details"].append(
-                            f"⚠️ vectorConfig['{vec_name}']: No compression enabled (enable RQ/BQ/PQ)"
-                        )
-                        diagnostics["compression_issues"].append(f"{collection_name} (vec: {vec_name})")
-            elif vector_index_config:
-                quantizer = getattr(vector_index_config, "quantizer", None)
-                if quantizer is not None:
-                    q_type = type(quantizer).__name__.lstrip("_").replace("Config", "")
-                    collection_diagnostics["compression"]["details"].append(
-                        f"✅ Compression enabled: {q_type}"
-                    )
-                else:
-                    collection_diagnostics["compression"]["status"] = "warning"
-                    collection_diagnostics["compression"]["details"].append(
-                        "⚠️ No compression enabled. Consider enabling for better memory management."
-                    )
-                    diagnostics["compression_issues"].append(collection_name)
+                        continue
+                    for scope in info.scopes:
+                        quantizer = info.quantizer_for(scope)
+                        arm = f"{label} → {scope}" if scope else label
+                        if quantizer is not None:
+                            collection_diagnostics["compression"]["details"].append(
+                                f"✅ {arm}: compression enabled ({quantizer.type.upper()})"
+                            )
+                        else:
+                            collection_diagnostics["compression"]["status"] = "warning"
+                            collection_diagnostics["compression"]["details"].append(
+                                f"⚠️ {arm}: no compression enabled (enable RQ/BQ/PQ/SQ)"
+                            )
+                            diagnostics["compression_issues"].append(
+                                f"{collection_name} ({arm})"
+                            )
             else:
                 collection_diagnostics["compression"]["status"] = "info"
                 collection_diagnostics["compression"]["details"].append("ℹ️ No vector configuration found")

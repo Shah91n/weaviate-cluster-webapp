@@ -1,9 +1,17 @@
+"""Entrypoint and router.
+
+With `st.navigation` this file is not a page: it runs on every rerun as the frame
+around whichever page is active. It owns session state, the single
+`st.set_page_config` call, the connection sidebar and the navigation. The cluster
+dashboard itself lives in `pages/cluster.py`.
+"""
+
 import streamlit as st
-from core.connection.weaviate_client import initialize_weaviate_connection, disconnect_weaviate
-from pages.cluster.cluster_operations_handlers import action_aggregate_collections_tenants, action_collections_configuration, action_metadata, action_nodes_and_shards, action_collection_schema, action_statistics, action_diagnose
-from pages.utils.navigation import navigate
-from pages.utils.helper import update_side_bar_labels, clear_session_state
-from pages.utils.page_config import set_custom_page_config
+
+from core.connection.weaviate_client import disconnect_weaviate, initialize_weaviate_connection
+from pages.utils.helper import clear_session_state, update_side_bar_labels
+from pages.utils.navigation import build_navigation
+from pages.utils.page_config import LOGO_PATH, configure_app
 
 # --------------------------------------------------------------------------
 # Initialize session state
@@ -70,8 +78,6 @@ if "openai_key" not in st.session_state:
     st.session_state.openai_key = ""
 if "cohere_key" not in st.session_state:
     st.session_state.cohere_key = ""
-if "huggingface_key" not in st.session_state:
-    st.session_state.huggingface_key = ""
     
 # Active connection state
 if "active_endpoint" not in st.session_state:
@@ -80,17 +86,20 @@ if "active_api_key" not in st.session_state:
     st.session_state.active_api_key = ""
 
 # --------------------------------------------------------------------------
-# Streamlit Page Config
+# Page config + logo. Called once here; pages must not call st.set_page_config.
 # --------------------------------------------------------------------------
-
-# Use with default page title
-set_custom_page_config()
+configure_app()
+st.logo(LOGO_PATH, size="large")
 
 # --------------------------------------------------------------------------
-# Navigation on side bar
+# Navigation. Built before the sidebar widgets so the page menu sits above the
+# connection panel. While disconnected it offers the Cluster page only.
 # --------------------------------------------------------------------------
-navigate()
+current_page = build_navigation(st.session_state.get("client_ready", False))
 
+# --------------------------------------------------------------------------
+# Connection panel
+# --------------------------------------------------------------------------
 st.sidebar.title("✨Weaviate Connection✨")
 
 if not st.session_state.client_ready:
@@ -193,7 +202,6 @@ if not st.session_state.client_ready:
     st.sidebar.markdown("Add API keys for Model provider integrations (optional):")
     st.sidebar.text_input("OpenAI API Key", type="password", key="openai_key")
     st.sidebar.text_input("Cohere API Key", type="password", key="cohere_key")
-    st.sidebar.text_input("HuggingFace API Key", type="password", key="huggingface_key")
 
     # --------------------------------------------------------------------------
     # Connect/Disconnect Buttons
@@ -206,8 +214,6 @@ if not st.session_state.client_ready:
             vectorizer_integration_keys["X-OpenAI-Api-Key"] = st.session_state.openai_key
         if st.session_state.cohere_key:
             vectorizer_integration_keys["X-Cohere-Api-Key"] = st.session_state.cohere_key
-        if st.session_state.huggingface_key:
-            vectorizer_integration_keys["X-HuggingFace-Api-Key"] = st.session_state.huggingface_key
 
         if st.session_state.use_local:
             success, details = initialize_weaviate_connection(
@@ -225,7 +231,6 @@ if not st.session_state.client_ready:
                 st.session_state.active_api_key = st.session_state.local_api_key
                 st.session_state.active_openai_key = st.session_state.openai_key
                 st.session_state.active_cohere_key = st.session_state.cohere_key
-                st.session_state.active_huggingface_key = st.session_state.huggingface_key
                 st.rerun()
             else:
                 st.session_state.client_ready = False
@@ -251,7 +256,6 @@ if not st.session_state.client_ready:
                 st.session_state.active_api_key = st.session_state.custom_api_key
                 st.session_state.active_openai_key = st.session_state.openai_key
                 st.session_state.active_cohere_key = st.session_state.cohere_key
-                st.session_state.active_huggingface_key = st.session_state.huggingface_key
                 st.rerun()
             else:
                 st.session_state.client_ready = False
@@ -277,7 +281,6 @@ if not st.session_state.client_ready:
                     st.session_state.active_api_key = st.session_state.cloud_api_key
                     st.session_state.active_openai_key = st.session_state.openai_key
                     st.session_state.active_cohere_key = st.session_state.cohere_key
-                    st.session_state.active_huggingface_key = st.session_state.huggingface_key
                     st.rerun()
                 else:
                     st.session_state.client_ready = False
@@ -292,69 +295,9 @@ else:
             st.sidebar.error(message)
     st.sidebar.info("Disconnect Button does clear all session states and cache, and disconnect the Weaviate client to server if connected.")
 
-# Essential run for the first time
+# --------------------------------------------------------------------------
+# Connection status, then hand off to the active page.
+# --------------------------------------------------------------------------
 update_side_bar_labels()
 
-# --------------------------------------------------------------------------
-# Main Page Content (Cluster Operations)
-# --------------------------------------------------------------------------
-st.markdown("Aggregation & Read Data is cached in the session state for an hour - to clear the cache either clear the cache in the Streamlit Developer Options or Disconnect then reconnect again.")
-
-# --------------------------------------------------------------------------
-# Buttons (calls a function)
-# --------------------------------------------------------------------------
-col1, col2, col3 = st.columns([1, 1, 1])
-col4, col5, col6 = st.columns([1, 1, 1])
-col7, col8, col9 = st.columns([1, 1, 1])
-
-# Dictionary: button name => action function
-button_actions = {
-    "nodes": action_nodes_and_shards,
-    "aggregate_collections_tenants": action_aggregate_collections_tenants,
-    "collection_properties": action_collection_schema,
-    "collections_configuration": action_collections_configuration,
-    "statistics": action_statistics,
-    "metadata": action_metadata,
-    "diagnose": action_diagnose
-}
-
-with col1:
-    if st.button("Aggregate Object Counts", width="stretch"):
-        st.session_state["active_button"] = "aggregate_collections_tenants"
-
-with col2:
-    if st.button("Collection Properties", width="stretch"):
-        st.session_state["active_button"] = "collection_properties"
-
-with col3:
-    if st.button("Collections Configuration", width="stretch"):
-        st.session_state["active_button"] = "collections_configuration"
-
-with col4:
-    if st.button("Nodes & Shards", width="stretch"):
-        st.session_state["active_button"] = "nodes"
-
-with col5:
-    if st.button("Raft Statistics", width="stretch"):
-        st.session_state["active_button"] = "statistics"
-
-with col6:
-    if st.button("Metadata",width="stretch"):
-        st.session_state["active_button"] = "metadata"
-
-with col7:
-    if st.button("Diagnose", width="stretch"):
-        st.session_state["active_button"] = "diagnose"
-
-# --------------------------------------------------------------------------
-# Execute the active button's action
-# --------------------------------------------------------------------------
-active_button = st.session_state.get("active_button")
-if active_button and st.session_state.get("client_ready"):
-    action_fn = button_actions.get(active_button)
-    if action_fn:
-        action_fn()
-    else:
-        st.warning("No action mapped for this button. Please report this issue to Mohamed Shahin in Weaviate Community Slack.")
-elif not st.session_state.get("client_ready"):
-    st.warning("Connect to Weaviate first!")
+current_page.run()

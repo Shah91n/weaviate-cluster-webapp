@@ -1,7 +1,129 @@
-# Hide default sidebar navigation for custom menus
-[client]
-showSidebarNavigation = false
+# NOTE: do not set client.showSidebarNavigation = false here. It sets
+# hide_sidebar_nav on the frontend, which hides the st.navigation menu too — not just
+# the legacy pages/ auto-navigation. Calling st.navigation already makes Streamlit
+# ignore the pages/ directory, so no suppression is needed.
 
 # Disable anonymous usage statistics collection
 [browser]
 gatherUsageStats = false
+
+# ---------------------------------------------------------------------------
+# Theme: this app is an instrument, not a landing page. Its job is to tell you
+# quickly whether a cluster is unhealthy, so COLOUR IS A STATUS CHANNEL, NOT
+# DECORATION. The chrome — sidebar, panels, borders — is achromatic. Saturation is
+# spent only on the active page, primary actions, and health states.
+#
+# Weaviate's indigo (#130C49) stays, but as ink and as the action colour rather
+# than as a large fill; a dark indigo sidebar competes with the diagnostics it is
+# meant to frame. The alert tokens below are deliberately muted: Streamlit's stock
+# yellow and blue callouts are bright enough to read as alarming on a screen where
+# a genuine warning must stand out.
+#
+# Fonts are system stacks on purpose. This is an internal ops tool, and a webfont
+# would add a network dependency and a flash of unstyled text on every page load.
+# ---------------------------------------------------------------------------
+[theme]
+base = "light"
+
+# Ink and ground
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5F7"
+textColor = "#191627"          # Weaviate indigo, lightened just enough to read as text
+borderColor = "#E5E5EA"
+dataframeHeaderBackgroundColor = "#F0F0F3"
+dataframeBorderColor = "#E5E5EA"
+
+# Action
+primaryColor = "#322C6E"       # indigo, desaturated so it reads as a control, not a highlight
+linkColor = "#4A429B"
+
+font = "sans-serif"
+headingFont = "sans-serif"
+codeFont = "monospace"
+baseFontSize = 15
+baseRadius = "medium"
+buttonRadius = "medium"
+showWidgetBorder = true
+showSidebarBorder = true
+metricValueFontSize = "1.75rem"
+
+# Status vocabulary — muted, so a real problem is the loudest thing on screen.
+greenColor = "#1E7A5A"
+greenBackgroundColor = "#E9F3EF"
+greenTextColor = "#14513C"
+yellowColor = "#8A6516"
+yellowBackgroundColor = "#F5F0E4"
+yellowTextColor = "#6B4E11"
+orangeColor = "#97551B"
+orangeBackgroundColor = "#F6EDE5"
+orangeTextColor = "#74400F"
+redColor = "#A8261F"
+redBackgroundColor = "#F8EBEA"
+redTextColor = "#7E1C17"
+blueColor = "#3B4488"
+blueBackgroundColor = "#EDEEF6"
+blueTextColor = "#2B3266"
+violetColor = "#5A4B9C"
+violetBackgroundColor = "#F0ECF8"
+violetTextColor = "#3F3470"
+grayColor = "#6B6B78"
+grayBackgroundColor = "#F1F1F4"
+grayTextColor = "#4A4A55"
+
+# Chart series: indigo through teal to clay. No lime — it reads as a warning here.
+chartCategoricalColors = ["#322C6E", "#1E7A5A", "#97551B", "#5A4B9C", "#2F6E86", "#A8261F"]
+chartSequentialColors = ["#EDEEF6", "#D3D4E8", "#B0B0D6", "#8A87C0", "#635FA4", "#413C82", "#241F5C"]
+
+# The sidebar frames the work; it does not compete with it.
+[theme.sidebar]
+backgroundColor = "#F7F7F9"
+secondaryBackgroundColor = "#EDEDF1"
+textColor = "#191627"
+primaryColor = "#322C6E"
+borderColor = "#E2E2E8"
+linkColor = "#322C6E"
+showWidgetBorder = true
+
+[theme.dark]
+backgroundColor = "#141220"
+secondaryBackgroundColor = "#1D1A2C"
+textColor = "#E7E6EE"
+borderColor = "#2C2840"
+dataframeHeaderBackgroundColor = "#1D1A2C"
+dataframeBorderColor = "#2C2840"
+primaryColor = "#9C95DC"
+linkColor = "#9C95DC"
+
+greenColor = "#5FBE9B"
+greenBackgroundColor = "#16342A"
+greenTextColor = "#9BD8C1"
+yellowColor = "#C9A25A"
+yellowBackgroundColor = "#332B18"
+yellowTextColor = "#E0C48D"
+orangeColor = "#C88A57"
+orangeBackgroundColor = "#33251A"
+orangeTextColor = "#E2B48B"
+redColor = "#D9736B"
+redBackgroundColor = "#361B1A"
+redTextColor = "#EBA39D"
+blueColor = "#8A92CE"
+blueBackgroundColor = "#1D2040"
+blueTextColor = "#B4BAE6"
+violetColor = "#A294D8"
+violetBackgroundColor = "#241D3D"
+violetTextColor = "#C6BCEA"
+grayColor = "#9A9AA8"
+grayBackgroundColor = "#232131"
+grayTextColor = "#B9B9C4"
+
+chartCategoricalColors = ["#9C95DC", "#5FBE9B", "#C88A57", "#A294D8", "#6FA9C0", "#D9736B"]
+chartSequentialColors = ["#1D1A2C", "#2B2745", "#3C3760", "#4F497D", "#665F9B", "#8079BB", "#9C95DC"]
+
+[theme.dark.sidebar]
+backgroundColor = "#100E1A"
+secondaryBackgroundColor = "#1D1A2C"
+textColor = "#E7E6EE"
+primaryColor = "#9C95DC"
+borderColor = "#2C2840"
+linkColor = "#9C95DC"
+showWidgetBorder = true
