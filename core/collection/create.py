@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def get_supported_vectorizers() -> List[str]:
 	logger.info("get_supported_vectorizers() called")
-	return ["text2vec_weaviate", "text2vec_openai", "text2vec_huggingface", "text2vec_cohere", "BYOV"]
+	return ["text2vec_weaviate", "text2vec_openai", "text2vec_cohere", "BYOV"]
 
 # Validate file format
 def validate_file_format(file_content: str, file_type: str) -> tuple[bool, str, Optional[List[Dict[str, Any]]]]:
@@ -53,8 +53,6 @@ def check_vectorizer_keys(vectorizer: str, integration_keys: Optional[Dict[str, 
 		return False, "OpenAI API key is required. Please reconnect with the key or select BYOV."
 	elif vectorizer == "text2vec_cohere" and "X-Cohere-Api-Key" not in integration_keys:
 		return False, "Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV."
-	elif vectorizer == "text2vec_huggingface" and "X-HuggingFace-Api-Key" not in integration_keys:
-		return False, "HuggingFace API key is required. Please reconnect with the key or select BYOV."
 	return True, ""
 
 # Create a new collection
@@ -80,8 +78,6 @@ def create_collection(
 			vector_config = Configure.Vectors.text2vec_weaviate()
 		elif vectorizer == "text2vec_openai":
 			vector_config = Configure.Vectors.text2vec_openai()
-		elif vectorizer == "text2vec_huggingface":
-			vector_config = Configure.Vectors.text2vec_huggingface()
 		elif vectorizer == "text2vec_cohere":
 			vector_config = Configure.Vectors.text2vec_cohere()
 		elif vectorizer == "BYOV":
@@ -99,7 +95,7 @@ def create_collection(
 
 # Sanitize keys for Weaviate
 def sanitize_keys(data_item: Dict[str, Any]) -> Dict[str, Any]:
-	logger.info("sanitize_keys() called")
+	logger.debug("sanitize_keys() called")
 	sanitized_item = {}
 	for key, value in data_item.items():
 		# Replace spaces and invalid characters with underscores
@@ -110,8 +106,22 @@ def sanitize_keys(data_item: Dict[str, Any]) -> Dict[str, Any]:
 		sanitized_item[sanitized_key] = value
 	return sanitized_item
 
-# Batch data. Reduce/Increase Batch Size as per your requirement. You can also pass concurrent_requests in batch.fixed_size(batch_size=1000, concurrent_requests=4)
-def batch_upload(collection_name: str, data: List[Dict[str, Any]], batch_size: int = 1000):
+# Progress is emitted roughly every 1% of the file, and never more often than every
+# MIN_PROGRESS_STEP objects. Yielding per object makes the UI re-render once per row,
+# which dominates the wall clock on large files.
+PROGRESS_STEPS = 100
+MIN_PROGRESS_STEP = 25
+
+# Import objects into a collection using server-side batching (`batch.stream`), where
+# the server sets the pace via backpressure. Requires Weaviate 1.36+. This is a
+# generator: it yields (ok, message, payload) tuples so the UI can show live progress.
+# The final yield carries a summary dict with the counts and any failed objects.
+def batch_upload(
+	collection_name: str,
+	data: List[Dict[str, Any]],
+	max_errors: int = 10,
+	concurrency: Optional[int] = None,
+):
 	logger.info(f"batch_upload() called for collection: {collection_name}")
 	client = get_weaviate_client()
 	if not client.collections.exists(collection_name):
@@ -119,21 +129,61 @@ def batch_upload(collection_name: str, data: List[Dict[str, Any]], batch_size: i
 		return
 
 	total_objects = len(data)
+	if total_objects == 0:
+		yield True, "Nothing to import — the file contained no objects.", {
+			"total": 0, "queued": 0, "succeeded": 0, "failed": [], "aborted": False,
+		}
+		return
 
-	with client.batch.fixed_size(batch_size=batch_size) as batch:
+	progress_every = max(MIN_PROGRESS_STEP, total_objects // PROGRESS_STEPS)
+	yield True, f"Importing {total_objects} object(s) with server-side batching…", None
+
+	queued = 0
+	aborted = False
+
+	with client.batch.stream(concurrency=concurrency) as batch:
 		for i, obj in enumerate(data, 1):
-			sanitized_obj = sanitize_keys(obj)
-			uuid = generate_uuid5(obj)
 			try:
 				batch.add_object(
 					collection=collection_name,
-					properties=sanitized_obj,
-					uuid=uuid
+					properties=sanitize_keys(obj),
+					uuid=generate_uuid5(obj)
 				)
-				# Yield a queuing message immediately for real-time feedback
-				yield True, f"Queuing object {i}/{total_objects}: {uuid}", None
+				queued += 1
 			except Exception as e:
+				logger.error(f"Failed to queue object {i}: {e}")
 				yield False, f"Failed to queue object {i}/{total_objects}: {str(e)}", None
+				continue
+
+			if i % progress_every == 0 or i == total_objects:
+				yield True, f"Queued {i}/{total_objects} object(s)", {
+					"queued": i, "total": total_objects,
+				}
+
+			# The server reports insert errors as the stream progresses, so a bad file
+			# can be abandoned without pushing the whole thing first.
+			if batch.number_errors > max_errors:
+				aborted = True
+				yield False, f"Import stopped: more than {max_errors} objects failed to insert.", None
+				break
+
+	failed_objects = client.batch.failed_objects or []
+	succeeded = queued - len(failed_objects)
+	summary = {
+		"total": total_objects,
+		"queued": queued,
+		"succeeded": max(succeeded, 0),
+		"failed": failed_objects,
+		"aborted": aborted,
+	}
+
+	if failed_objects:
+		yield False, f"Imported {max(succeeded, 0)}/{total_objects} object(s) — {len(failed_objects)} failed.", summary
+	elif aborted:
+		yield False, f"Import aborted after {queued}/{total_objects} object(s).", summary
+	else:
+		yield True, f"Imported {total_objects} object(s) successfully.", summary
+
 
 # Get the newely created collection
 def get_collection_info(collection_name: str) -> tuple[bool, str, Optional[Dict[str, Any]]]:

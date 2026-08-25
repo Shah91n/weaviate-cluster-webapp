@@ -1,57 +1,57 @@
 import streamlit as st
-from pages.utils.navigation import navigate
-from pages.utils.helper import update_side_bar_labels
-from pages.utils.page_config import set_custom_page_config
+
 from core.rbac.read import (
-	list_all_users,
-	list_all_roles,
 	list_all_permissions,
-	list_users_roles_permissions_combined
+	list_all_roles,
+	list_all_users,
+	list_users_roles_permissions_combined,
+)
+from pages.utils import ui
+from pages.utils.page_config import page_header
+
+# key -> (button label, icon, heading, loader, count label)
+RBAC_VIEWS = (
+	("users", "Users", "🫂", list_all_users, "user(s)"),
+	("roles", "Roles", "🎭", list_all_roles, "role(s)"),
+	("permissions", "Permissions", "🔐", list_all_permissions, "permission entr(ies)"),
+	("combined", "User Permissions Report", "📋", list_users_roles_permissions_combined, "user-role assignment(s)"),
 )
 
 
 def main():
-	set_custom_page_config(page_title="Role-Based Access Control (RBAC)")
-	navigate()
-	if st.session_state.get("client_ready"):
-		update_side_bar_labels()
+	page_header("Role-Based Access Control")
+	ui.require_connection()
 
-		st.write("Select to display Weaviate Database Role-Based Access Control data:")
+	# The selection is kept in session state so the table survives any other rerun.
+	active = st.session_state.get("rbac_view")
+	columns = st.columns(len(RBAC_VIEWS))
+	for column, (key, label, icon, _, _) in zip(columns, RBAC_VIEWS):
+		with column:
+			if st.button(
+				label,
+				icon=icon,
+				width="stretch",
+				key=f"rbac_{key}",
+				type="primary" if active == key else "secondary",
+			):
+				st.session_state["rbac_view"] = key
+				active = key
 
-		col1, col2, col3, col4 = st.columns(4)
-		with col1:
-			show_users = st.button("Users", width="stretch")
-		with col2:
-			show_roles = st.button("Roles", width="stretch")
-		with col3:
-			show_permissions = st.button("Permissions", width="stretch")
-		with col4:
-			show_combined = st.button("User Permissions Report", width="stretch")
+	if not active:
+		st.info("Select one of the buttons above to view RBAC information.")
+		return
 
-		if show_users:
-			df = list_all_users()  
-			st.subheader("🫂 Users")
-			st.dataframe(df, width="stretch")
-			st.caption(f"Total Users: {len(df)}")
-		elif show_roles:
-			df = list_all_roles()  
-			st.subheader("🎭 Roles")
-			st.dataframe(df, width="stretch")
-			st.caption(f"Total Roles: {len(df)}")
-		elif show_permissions:
-			df = list_all_permissions()  
-			st.subheader("🔐 Permissions")
-			st.dataframe(df, width="stretch")
-			st.caption(f"Total Permission Entries: {len(df)}")
-		elif show_combined:
-			df = list_users_roles_permissions_combined()  
-			st.subheader("📋 Users Permissions Report")
-			st.dataframe(df, width="stretch")
-			st.caption(f"Total User-Role Assignments: {len(df)}")
-		else:
-			st.info("Select one of the buttons above to view RBAC information.")
-	else:
-		st.warning("Please Establish a connection to Weaviate in Cluster page!")
+	_, label, icon, loader, count_label = next(v for v in RBAC_VIEWS if v[0] == active)
+	try:
+		rows = loader()
+	except Exception as e:
+		st.error(f"Failed to load {label.lower()}: {e}")
+		return
 
-if __name__ == "__main__":
-	main()
+	st.markdown("---")
+	ui.section(label, icon=icon)
+	ui.metric_row([(label, len(rows) if rows is not None else 0)])
+	ui.data_table(rows, f"No {count_label} found.")
+
+
+main()

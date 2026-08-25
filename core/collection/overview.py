@@ -1,12 +1,32 @@
 import pandas as pd
 import logging
+from core.collection.vector_index import HFRESH, describe_vector_indexes
 from core.connection.weaviate_connection_manager import get_weaviate_client
 
 logger = logging.getLogger(__name__)
 
 
+def _empty_aggregate(error=None):
+	"""The zero-state result. aggregate_collections() always returns this shape."""
+	result = {
+		"collection_count": 0,
+		"total_tenants_count": 0,
+		"empty_collections": 0,
+		"empty_tenants": 0,
+		"total_objects_regular": 0,
+		"total_objects_multitenancy": 0,
+		"total_objects_combined": 0,
+		"result_df": pd.DataFrame(),
+		"empty_collections_list": [],
+		"empty_tenants_details": [],
+	}
+	if error is not None:
+		result["error"] = error
+	return result
 
-# Aggregate collections.
+
+# Aggregate collections. Always returns a dict — never None, which the cluster page
+# used to receive when the cluster reported no collections.
 def aggregate_collections():
 	logger.info("aggregate_collections() called")
 	try:
@@ -95,23 +115,15 @@ def aggregate_collections():
 				"empty_collections_list": empty_collections_list,
 				"empty_tenants_details": empty_tenants_details
 			}
+
+		return _empty_aggregate()
 	except Exception as e:
 		logger.error(f"Error in aggregate_collections: {e}")
-		return {
-			"collection_count": 0,
-			"total_tenants_count": 0,
-			"empty_collections": 0,
-			"empty_tenants": 0,
-			"total_objects_regular": 0,
-			"total_objects_multitenancy": 0,
-			"total_objects_combined": 0,
-			"result_df": pd.DataFrame(),
-			"empty_collections_list": [],
-			"empty_tenants_details": []
-		}
+		return _empty_aggregate(error=f"Failed to aggregate collections: {e}")
 
 
-# List all collections
+# List all collections. Raises on failure rather than returning an empty list, so a
+# permissions or connection error is never displayed as "no collections".
 def list_collections():
 	logger.info("list_collections() called")
 	try:
@@ -124,7 +136,7 @@ def list_collections():
 		return list(collections)
 	except Exception as e:
 		logger.error(f"Error listing collections: {e}")
-		return []
+		raise Exception(f"Failed to list collections: {e}")
 
 
 # Get collection schema (full config, simple=False)
@@ -136,7 +148,7 @@ def get_schema():
 		return response if response else {}
 	except Exception as e:
 		logger.error(f"Error getting schema: {e}")
-		return {}
+		raise Exception(f"Failed to load schema: {e}")
 
 
 # Get the full configuration of a single collection using the Weaviate Python client SDK.
@@ -148,48 +160,48 @@ def fetch_collection_config(collection_name):
 		return collection.config.get()
 	except Exception as e:
 		logger.error(f"Error fetching collection config for '{collection_name}': {e}")
-		return None
+		raise Exception(f"Failed to load configuration for '{collection_name}': {e}")
 
 
-def _vic_to_dict(vic):
-	"""Convert a _VectorIndexConfigHNSW object to a flat display dict."""
-	if vic is None:
-		return {}
-	d = {
-		"distance_metric": str(getattr(vic, "distance_metric", "")),
-		"ef": getattr(vic, "ef", None),
-		"ef_construction": getattr(vic, "ef_construction", None),
-		"max_connections": getattr(vic, "max_connections", None),
-		"dynamic_ef_min": getattr(vic, "dynamic_ef_min", None),
-		"dynamic_ef_max": getattr(vic, "dynamic_ef_max", None),
-		"dynamic_ef_factor": getattr(vic, "dynamic_ef_factor", None),
-		"flat_search_cutoff": getattr(vic, "flat_search_cutoff", None),
-		"vector_cache_max_objects": getattr(vic, "vector_cache_max_objects", None),
-		"filter_strategy": str(getattr(vic, "filter_strategy", "")),
-		"cleanup_interval_seconds": getattr(vic, "cleanup_interval_seconds", None),
-		"skip": getattr(vic, "skip", None),
-	}
-	quantizer = getattr(vic, "quantizer", None)
-	if quantizer is not None:
-		q_type = type(quantizer).__name__.lstrip("_").replace("Config", "")
-		d["quantizer_type"] = q_type
-		# Dynamically read all public fields on the quantizer object
-		q_attrs = vars(quantizer) if hasattr(quantizer, "__dict__") else {}
-		for attr, val in q_attrs.items():
-			if attr.startswith("_"):
-				continue
-			# Encoder is a nested object — flatten it separately below
-			if attr == "encoder":
-				continue
-			d[f"quantizer_{attr}"] = val
-		# Flatten encoder sub-object dynamically if present
-		encoder = getattr(quantizer, "encoder", None)
-		if encoder is not None:
-			enc_attrs = vars(encoder) if hasattr(encoder, "__dict__") else {}
-			for attr, val in enc_attrs.items():
-				if not attr.startswith("_"):
-					d[f"quantizer_encoder_{attr}"] = val
-	return {k: str(v) if v is not None else "None" for k, v in d.items() if k in d}
+def _display_value(value):
+	"""Render an SDK config value as a readable string."""
+	if value is None:
+		return "None"
+	return str(getattr(value, "value", value))
+
+
+def _as_display_dict(params):
+	return {k: _display_value(v) for k, v in params.items() if v is not None}
+
+
+def _describe_index_for_display(info):
+	"""Turn one VectorIndexInfo into the ordered sections the config page renders."""
+	sections = {"Vector Index Type": info.index_type}
+
+	if info.vectorizer:
+		sections["Vectorizer"] = info.vectorizer
+
+	index_params = _as_display_dict(info.params)
+	if index_params:
+		sections["Vector Index Config"] = index_params
+
+	# A dynamic index keeps its real settings — and its quantizers — one level down.
+	for scope, params in info.sub_indexes.items():
+		scope_params = _as_display_dict(params)
+		if scope_params:
+			sections[f"Sub-Index: {scope}"] = scope_params
+
+	for quantizer in info.quantizers:
+		sections[f"Quantizer: {quantizer.label}"] = _as_display_dict(quantizer.params)
+
+	if not info.quantizers:
+		sections["Compression"] = "none"
+	elif info.index_type == HFRESH:
+		sections["Compression"] = f"{info.compression_summary} (built in, always on)"
+	else:
+		sections["Compression"] = info.compression_summary
+
+	return sections
 
 
 # Process a SDK CollectionConfig object into a displayable sections dict.
@@ -251,42 +263,10 @@ def process_collection_config(config):
 		if sharding_dict:
 			result["Sharding Config"] = sharding_dict
 
-	# Named vectors
-	vector_config = getattr(config, "vector_config", None)
-	if vector_config:
-		named_vecs = {}
-		for vec_name, named_vec in vector_config.items():
-			vec_info = {}
-
-			vectorizer_obj = getattr(named_vec, "vectorizer", None)
-			if vectorizer_obj:
-				vec_key = getattr(getattr(vectorizer_obj, "vectorizer", None), "value", str(getattr(vectorizer_obj, "vectorizer", "unknown")))
-				vec_info["Vectorizer"] = {
-					vec_key: getattr(vectorizer_obj, "model", {}) or {}
-				}
-				src = getattr(vectorizer_obj, "source_properties", None)
-				if src:
-					vec_info["Vectorizer"][vec_key]["source_properties"] = str(src)
-
-			vic = getattr(named_vec, "vector_index_config", None)
-			if vic:
-				vec_info["Vector Index Type"] = "hnsw"
-				vec_info["Vector Index Config"] = _vic_to_dict(vic)
-
-			named_vecs[vec_name] = vec_info
-		result["Named Vectors Config"] = named_vecs
-
-	elif getattr(config, "vector_index_config", None):
-		# Single vector
-		vic = config.vector_index_config
-		result["vectorIndexType"] = "hnsw"
-		result["Vector Index Config"] = _vic_to_dict(vic)
-
-		vc = getattr(config, "vectorizer_config", None)
-		if vc:
-			vec_key = getattr(getattr(vc, "vectorizer", None), "value", str(getattr(vc, "vectorizer", "unknown")))
-			result["Vectorizer Config"] = {
-				vec_key: getattr(vc, "model", {}) or {}
-			}
+	# Vectors — covers named vectors and the legacy single vector alike, and reports the
+	# real index type (hnsw / flat / dynamic / hfresh) rather than assuming HNSW.
+	indexes = describe_vector_indexes(config)
+	if indexes:
+		result["Vectors"] = {info.name: _describe_index_for_display(info) for info in indexes}
 
 	return result

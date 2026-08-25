@@ -4,9 +4,8 @@ from core.search.vector import vector_search, vector_search_with_multiple_vector
 from core.search.keyword import keyword_search
 from core.collection.overview import list_collections
 from core.object.read import get_tenant_names
-from pages.utils.page_config import set_custom_page_config
-from pages.utils.navigation import navigate
-from pages.utils.helper import update_side_bar_labels
+from pages.utils import ui
+from pages.utils.page_config import page_header
 from core.connection.weaviate_connection_manager import get_weaviate_client
 
 # Initialize session state variables
@@ -31,7 +30,7 @@ def display_search_interface():
 	st.subheader("Search in Collection")
 
 	# Collections list
-	collections = list_collections() or []
+	collections = ui.load(list_collections, error_prefix="Could not list collections") or []
 	if not collections:
 		st.warning("No collections available. Create a collection first.")
 		st.session_state.selected_collection = None
@@ -233,47 +232,43 @@ def display_results(success: bool, message: str, df, time_taken: float):
 		st.error(message)
 
 def main():
-	set_custom_page_config(page_title="Search")
-	navigate()
-	update_side_bar_labels()
+	page_header("Search")
+	ui.require_connection()
 
-	if st.session_state.get("client_ready"):
-		initialize_session_state()
+	initialize_session_state()
 
+	st.markdown("""
+	            Search across your collections using either hybrid or keyword search.
+	            """)
+
+	# Display search types in columns
+	col1, col2 = st.columns(2)
+	with col1:
 		st.markdown("""
-		            Search across your collections using either hybrid or keyword search.
+		            **Hybrid Search**:
+		            - Combines vector and keyword search capabilities
+		            - Adjust alpha to balance between vector and keyword search
+		            - Best for semantic similarity and keyword matching
+		            """)
+	with col2:
+		st.markdown("""
+		            **Keyword Search (BM25)**:
+		            - Pure keyword-based search
+		            - Fast and efficient for exact matches
+		            - No vector similarity involved
 		            """)
 
-		# Display search types in columns
-		col1, col2 = st.columns(2)
-		with col1:
-			st.markdown("""
-			            **Hybrid Search**:
-			            - Combines vector and keyword search capabilities
-			            - Adjust alpha to balance between vector and keyword search
-			            - Best for semantic similarity and keyword matching
-			            """)
-		with col2:
-			st.markdown("""
-			            **Keyword Search (BM25)**:
-			            - Pure keyword-based search
-			            - Fast and efficient for exact matches
-			            - No vector similarity involved
-			            """)
+	# Add tokenization information banner
+	st.info("""
+	        **Tokenization in Weaviate Search**
+	        
+	        Tokenization plays a crucial role in search functionality. Weaviate offers various tokenization options to configure how keyword searches and filters are performed for each property.
+	        
+	        To learn more about tokenization options and how they affect your search results, visit the [Weaviate Tokenization Documentation](https://weaviate.io/developers/academy/py/tokenization/options).
+	        """)
 
-		# Add tokenization information banner
-		st.info("""
-		        **Tokenization in Weaviate Search**
-		        
-		        Tokenization plays a crucial role in search functionality. Weaviate offers various tokenization options to configure how keyword searches and filters are performed for each property.
-		        
-		        To learn more about tokenization options and how they affect your search results, visit the [Weaviate Tokenization Documentation](https://weaviate.io/developers/academy/py/tokenization/options).
-		        """)
+	# Display search interface
+	display_search_interface()
 
-		# Display search interface
-		display_search_interface()
-	else:
-		st.warning("Please Establish a connection to Weaviate in Cluster page!")
 
-if __name__ == "__main__":
-	main()
+main()

@@ -5,9 +5,8 @@ import streamlit as st
 
 from core.collection.overview import list_collections
 from core.object.read import get_tenant_names, read_objects_batch
-from pages.utils.page_config import set_custom_page_config
-from pages.utils.helper import update_side_bar_labels
-from pages.utils.navigation import navigate
+from pages.utils import ui
+from pages.utils.page_config import page_header
 
 MAX_OBJECTS = 1000
 ITEMS_PER_PAGE = 100
@@ -82,17 +81,12 @@ def _render_table(records):
 
 
 def main():
-	set_custom_page_config(page_title="Read Collections")
-	navigate()
-	update_side_bar_labels()
+	page_header("Read")
+	ui.require_connection()
 	_ensure_state()
 
-	if not st.session_state.get("client_ready"):
-		st.warning("Please establish a connection to Weaviate in Cluster page")
-		return
-
 	if st.button("Fetch Collections List", width="stretch"):
-		collections = list_collections()
+		collections = ui.load(list_collections, error_prefix="Could not list collections")
 		collections.sort()
 		st.session_state.collections_list = collections
 		st.session_state.collections_fetched = True
@@ -165,5 +159,4 @@ def main():
 		_render_table(st.session_state.read_objects_preview)
 
 
-if __name__ == "__main__":
-	main()
+main()

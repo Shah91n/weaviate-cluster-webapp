@@ -26,7 +26,8 @@ docker run -p 8501:8501 --add-host=localhost:host-gateway weaviateclusterapp
 ## Project Structure
 
 ```
-streamlit_app.py                     App entrypoint — connection UI + cluster dashboard
+streamlit_app.py                     Entrypoint/router — session state, page config,
+                                     connection UI, st.navigation
 core/                                Business logic only — no Streamlit imports
   connection/
     weaviate_connection_manager.py   WeaviateConnectionManager singleton + get_weaviate_manager() / get_weaviate_client()
@@ -40,13 +41,16 @@ core/                                Business logic only — no Streamlit import
                                      fetch_collection_config(), process_collection_config()
     create.py                        get_supported_vectorizers(), validate_file_format(),
                                      check_vectorizer_keys(), create_collection(),
-                                     batch_upload() [generator], get_collection_info(),
-                                     get_collection_objects(), sanitize_keys()
+                                     batch_upload() [generator, server-side streaming],
+                                     get_collection_info(), get_collection_objects(),
+                                     sanitize_keys()
     delete.py                        delete_all_collections(), delete_collections(),
                                      delete_tenants_from_collection()
     update_collection_config.py      get_collection_config(), update_description_and_inverted_index(),
-                                     update_multi_tenancy_and_replication(),
-                                     update_hnsw_vector_index(), update_pq_quantizer()
+                                     update_multi_tenancy_and_replication()
+    vector_index.py                  describe_vector_indexes(), update_vector_index(),
+                                     build_index_update(), MUTABLE_INDEX_FIELDS,
+                                     MUTABLE_QUANTIZER_FIELDS, QUANTIZERS_BY_INDEX
   object/
     read.py                          get_tenant_names(), read_objects_batch() [iterator, 1 000 cap]
     update_object.py                 get_object_in_collection(), get_object_in_tenant(),
@@ -73,9 +77,13 @@ pages/                               Streamlit UI — one file per feature, no S
                                      action_collection_schema(), action_collections_configuration(),
                                      action_statistics(), action_metadata(), action_diagnose()
   utils/
-    navigation.py                    navigate() — sidebar nav + logo
+    navigation.py                    build_navigation() — st.navigation, NAV_SECTIONS
     helper.py                        update_side_bar_labels(), clear_session_state()
-    page_config.py                   set_custom_page_config()
+    page_config.py                   configure_app() [entrypoint only], page_header()
+    ui.py                            require_connection(), section(), metric_row(),
+                                     kv_table(), data_table(), status_line(),
+                                     status_callout(), admin_warning(), download_list()
+  cluster_dashboard.py               Cluster dashboard page (default page, served at /)
   agent.py                           QueryAgent natural-language Q&A UI
   backup.py                          Backup list page (auto-detected S3/GCS/Azure backend)
   create.py                          Create collection + batch upload (CSV/JSON)
@@ -93,7 +101,9 @@ assets/                              Static files (weaviate-logo.png)
 ## Architecture
 
 ### Layers
-- **Entrypoint** (`streamlit_app.py`) — Session state init, connection widgets, auto-connect from URL params, cluster dashboard buttons.
+- **Entrypoint / router** (`streamlit_app.py`) — Session state init, the single `st.set_page_config`,
+  auto-connect from URL params, the connection sidebar, and `st.navigation(...).run()`. It is not a
+  page: it runs on every rerun as the frame around the active page.
 - **Core layer** (`core/`) — Pure business logic. **No `st.*` calls ever.** Each module calls `get_weaviate_client()` from the connection manager.
 - **Pages layer** (`pages/`) — Streamlit UI only. **No direct Weaviate SDK calls.** Pages call `core/` functions and render results.
 - **Utils layer** (`pages/utils/`) — Shared Streamlit helpers: navigation sidebar, page config, session helpers.
@@ -120,7 +130,7 @@ The manager also exposes `get_weaviate_manager()` when you need metadata (`get_e
 | Local | `weaviate.connect_to_local(port, grpc_port, ...)` |
 | Custom | `weaviate.connect_to_custom(http_host, http_port, grpc_host, grpc_port, http_secure, grpc_secure, ...)` |
 
-All modes accept optional vectorizer keys (`X-OpenAI-Api-Key`, `X-Cohere-Api-Key`, `X-HuggingFace-Api-Key`) passed as `headers` at connect time.
+All modes accept optional vectorizer keys (`X-OpenAI-Api-Key`, `X-Cohere-Api-Key`) passed as `headers` at connect time.
 
 All connections use `skip_init_checks=True` and `Timeout(init=90, query=900, insert=900)`.
 
@@ -133,7 +143,7 @@ All connections use `skip_init_checks=True` and `Timeout(init=90, query=900, ins
 | `client_ready` | `bool` — connection established |
 | `active_endpoint` | Connected cluster URL |
 | `active_api_key` | Connected API key |
-| `active_openai_key` / `active_cohere_key` / `active_huggingface_key` | Vectorizer keys in-use |
+| `active_openai_key` / `active_cohere_key` | Vectorizer keys in-use |
 | `server_version` | Weaviate server version string |
 | `use_local` / `use_custom` | Connection mode flags |
 | `auto_connect_attempted` | Guards single auto-connect from URL params |
@@ -150,6 +160,36 @@ Page-level keys are initialized in each page's `initialize_session_state()` or `
 - **Never** import `streamlit` inside `core/`
 - **Never** call the Weaviate SDK directly inside a page file — always delegate to a `core/` function
 
+### Presentation
+- Headings, KPI rows, config tables and status lines come from `pages/utils/ui.py` — do not
+  hand-roll `st.dataframe(df.astype(str))` or ad-hoc `st.markdown("###### ...")` headings
+- Theme lives in `.streamlit/config.toml`. The rule it encodes: **colour is a status
+  channel, not decoration** — chrome (sidebar, panels, borders) is achromatic, and
+  saturation is reserved for the active page, primary actions and health states.
+  Streamlit's stock yellow/blue alert colours are deliberately muted so a real warning
+  is the loudest thing on screen. Fonts are system stacks: no webfont dependency
+- Destructive actions are confirmed with `st.dialog`, long operations use `st.status`
+
+### Vector Index Configuration
+All reads and writes of vector index config go through `core/collection/vector_index.py`.
+It normalises the two collection layouts (named vectors under `vector_config` vs. the legacy
+single vector under `vector_index_config`) and all four index types (`hnsw`, `flat`,
+`dynamic`, `hfresh`) into `VectorIndexInfo` objects.
+
+- **Never hardcode `"hnsw"`.** Read the type from `VectorIndexInfo.index_type`, which comes
+  from the SDK's own `vic.vector_index_type()`.
+- A `dynamic` index has **no `.quantizer` attribute** — its quantizers live under
+  `.hnsw.quantizer` and `.flat.quantizer`. `VectorIndexInfo.scopes` / `.quantizer_for(scope)`
+  handle this; reading `vic.quantizer` directly reports "no compression" on a compressed
+  collection.
+- Quantizer **type** is immutable after creation; only its mutable fields can change.
+- `flat` compression is immutable after creation; `hfresh` RQ is mandatory and always on.
+- Named-vector collections update via `vector_config=Reconfigure.Vectors.update(...)`;
+  legacy collections via `vectorizer_config=` (the only parameter that accepts a dynamic update).
+- Quantizer updates on an index whose config has no `pq` key (HFresh) need
+  **weaviate-client > 4.23.0**; 4.23.0 reads `vector_index_config["pq"]` unguarded in
+  `_CollectionConfigUpdate.__check_quantizers` and raises `KeyError('pq')`.
+
 ### Logging
 - Use `logging.getLogger(__name__)` in every module
 - `logger.info()` at function entry points, `logger.error()` for caught exceptions, `logger.debug()` for hot-path helpers
@@ -157,22 +197,53 @@ Page-level keys are initialized in each page's `initialize_session_state()` or `
 
 ### Error Handling
 - `core/` functions return `(bool, str)` or `(bool, str, data)` tuples on failure paths, or raise `Exception` with a descriptive message
+- **Never turn a read failure into an empty result.** `list_collections()`, `get_schema()` and
+  `fetch_collection_config()` raise; returning `[]`/`{}`/`None` renders a permissions or
+  connection error as "no collections", which is indistinguishable from an empty cluster.
+  Pages call them through `ui.load(reader, ...)`, which shows the error and stops the page
+- `aggregate_collections()` always returns a dict (see `_empty_aggregate()`), never `None`
 - Pages catch exceptions and display them via `st.error()`
-- `batch_upload()` in `create.py` is a **generator** — it `yield`s `(bool, message, None)` tuples for real-time progress feedback
+- `batch_upload()` in `create.py` is a **generator** — it `yield`s `(ok, message, payload)` tuples for
+  real-time progress; `payload` is `None`, a `{queued, total}` progress dict, or the final summary dict
 
-## Sidebar Navigation (in order)
+## Navigation
+
+`st.navigation` + `st.Page`, built in `pages/utils/navigation.py`. Because `st.navigation` is
+used, Streamlit ignores `pages/` as an implicit page source — every page is declared there.
+
+**While disconnected, only the Cluster page is offered.** The rest appear once `client_ready`
+is set. That is an affordance, not a guard: every page still calls `ui.require_connection()`,
+which `st.stop()`s the body.
+
+**Do not set `client.showSidebarNavigation = false`** in `.streamlit/config.toml`. It sets
+`hide_sidebar_nav` on the frontend, which hides the `st.navigation` menu — every page link
+disappears. It was only ever needed to suppress the legacy `pages/` auto-navigation, and
+`st.navigation` already does that.
+
+Page rules:
+- A page is a plain script ending in a bare `main()` call — **no** `if __name__ == "__main__"`,
+  and `streamlit run pages/<x>.py` is no longer supported. Run `streamlit run streamlit_app.py`.
+- A page must **not** call `st.set_page_config` — the router owns it. Use `page_header(title)`.
+- A page must **not** call `update_side_bar_labels()` — the router does it once.
+- `pages/cluster_dashboard.py` is named that way so it cannot shadow the `pages/cluster/`
+  handlers package. As the default page it is served at the app root.
+
+Grouped by task:
 
 ```
-🔍  Cluster             streamlit_app.py
-🔐  Role-Based Access Control   pages/rbac.py
-📄  Multi Tenancy       pages/multitenancy.py
-🤖  Agent               pages/agent.py
-🧐  Search              pages/search.py
-➕  Create              pages/create.py
-📁  Read                pages/read.py
-🗃️  Update              pages/update.py
-🗑️  Delete              pages/delete.py
-💾  Backup              pages/backup.py
+EXPLORE
+  🔍  Cluster                     streamlit_app.py
+  🔐  Role-Based Access Control   pages/rbac.py
+  📄  Multi Tenancy               pages/multitenancy.py
+  💾  Backup                      pages/backup.py
+QUERY
+  🤖  Agent                       pages/agent.py
+  🧐  Search                      pages/search.py
+MANAGE
+  ➕  Create                      pages/create.py
+  📁  Read                        pages/read.py
+  🗃️  Update                      pages/update.py
+  🗑️  Delete                      pages/delete.py
 ```
 
 ---
@@ -190,11 +261,14 @@ Seven buttons map to action functions:
 - **Diagnose** — shard consistency check + per-collection compression/replication diagnostics with CSV export
 
 ### Create (`pages/create.py` / `core/collection/create.py`)
-- Supported vectorizers: `text2vec_weaviate`, `text2vec_openai`, `text2vec_huggingface`, `text2vec_cohere`, `BYOV`
+- Supported vectorizers: `text2vec_weaviate`, `text2vec_openai`, `text2vec_cohere`, `BYOV`
 - Collections are created with `replication_config=Configure.replication(3)` by default
 - Batch upload accepts CSV or JSON; property keys are sanitized (non-alphanumeric → `_`)
 - UUIDs are deterministic via `generate_uuid5(obj)`
-- Upload is a streaming generator — UI shows live per-object progress
+- Import uses **server-side batching only** (`client.batch.stream()`, Weaviate 1.36+), which lets
+  the server set the pace via backpressure. No client-side batching fallback — deliberate
+- `batch_upload()` yields progress roughly every 1% of the file and aborts past `max_errors`
+  insert failures; the final yield carries a summary dict (mode, counts, failed objects)
 
 ### Read (`pages/read.py` / `core/object/read.py`)
 - Caps at **1 000 objects** using the iterator API
@@ -208,9 +282,10 @@ Seven buttons map to action functions:
 - All modes return score/distance/metadata columns + timing (ms)
 - Named vectors auto-detected from `collection.vector_config`
 
-### Update (`pages/update.py` / `core/collection/update_collection_config.py` / `core/object/update_object.py`)
+### Update (`pages/update.py` / `core/collection/update_collection_config.py` / `core/collection/vector_index.py` / `core/object/update_object.py`)
 - **Object update** — fetch by UUID (with optional tenant), type-aware field editors, `collection.data.update()` PATCH
-- **Collection config update** — description + inverted index, multi-tenancy + replication, HNSW, PQ quantizer (⚠️ admin key required)
+- **Collection config update** — description + inverted index, multi-tenancy + replication, and a
+  vector index editor whose fields are driven by the collection's actual index type (⚠️ admin key required)
 
 ### RBAC (`pages/rbac.py` / `core/rbac/read.py`)
 Four views: Users, Roles, Permissions (flat), combined User-Permissions report.
@@ -229,7 +304,8 @@ Uses `client.users.db.list_all()` and `client.roles.list_all()`.
 
 ### Diagnose (`core/cluster/cluster_health.py` → `action_diagnose`)
 Checks per collection:
-- **Compression** — inspects `quantizer` on named vector configs or single `vector_index_config`
+- **Compression** — via `describe_vector_indexes()`, so dynamic indexes report the quantizer on
+  each of their hnsw/flat arms and HFresh reports its built-in RQ
 - **Replication** — `asyncEnabled`, `deletionStrategy` (flags `NoAutomatedResolution` as CRITICAL), replication factor (warns on 1 or even numbers)
 - **Shard consistency** — compares object counts for the same shard across all nodes; flags mismatches
 
@@ -248,7 +324,10 @@ streamlit run streamlit_app.py
 docker run -p 8080:8080 -p 50051:50051 cr.weaviate.io/semitechnologies/weaviate:latest
 ```
 
-No automated test suite. Manual verification against a live Weaviate instance.
+No pytest suite. Pages are smoke-tested headlessly with `streamlit.testing.v1.AppTest`
+against a live cluster: initialise from `streamlit_app.py` (the router) and use
+`AppTest.switch_page("pages/<x>.py")` to reach each page. Test both connection states, and
+discover collection names from the client rather than hardcoding them.
 
 ---
 

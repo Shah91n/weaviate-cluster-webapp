@@ -1,7 +1,6 @@
 import streamlit as st
-from pages.utils.page_config import set_custom_page_config
-from pages.utils.navigation import navigate
-from pages.utils.helper import update_side_bar_labels
+from pages.utils import ui
+from pages.utils.page_config import page_header
 from core.collection.overview import list_collections
 from core.agents.query_agent import run_query_agent, capture_display, extract_known_fields, sanitize_display
 
@@ -43,7 +42,7 @@ def initialize_session_state():
 
 def display_agent_ui():
     # Fetch collections fresh each render
-    collections = list_collections()
+    collections = ui.load(list_collections, error_prefix="Could not list collections")
 
     if isinstance(collections, dict):  # error scenario
         st.error(collections.get('error', 'Error fetching collections'))
@@ -124,13 +123,8 @@ def display_agent_ui():
 
 
 def main():
-    set_custom_page_config(page_title='Agent')
-    navigate()
-    update_side_bar_labels()
-
-    if not st.session_state.get('client_ready'):
-        st.warning('Please Establish a connection to Weaviate in Cluster page!')
-        return
+    page_header('Agent')
+    ui.require_connection()
 
     initialize_session_state()
 
@@ -145,5 +139,4 @@ def main():
     display_agent_ui()
 
 
-if __name__ == '__main__':
-    main()
+main()

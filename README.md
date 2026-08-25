@@ -24,7 +24,7 @@ Connect via three modes — all with optional vectorizer API key injection:
 - **Cloud** — Weaviate Cloud cluster via URL + API key
 - **Auto-Connect via URL params** — `?endpoint=<URL>&api_key=<KEY>`
 
-Vectorizer integrations: OpenAI, Cohere, HuggingFace (keys injected as request headers at connect time).
+Vectorizer integrations: OpenAI, Cohere (keys injected as request headers at connect time).
 
 ### Cluster Management
 - **Nodes & Shards** — View node details, shard info, set read-only shards to READY (⚠️ requires admin key)
