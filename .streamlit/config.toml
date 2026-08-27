@@ -71,8 +71,10 @@ grayBackgroundColor = "#F1F1F4"
 grayTextColor = "#4A4A55"
 
 # Chart series: indigo through teal to clay. No lime — it reads as a warning here.
+# chartSequentialColors must be exactly 10 stops — Streamlit logs an error and falls
+# back to its own palette otherwise. chartCategoricalColors has no length requirement.
 chartCategoricalColors = ["#322C6E", "#1E7A5A", "#97551B", "#5A4B9C", "#2F6E86", "#A8261F"]
-chartSequentialColors = ["#EDEEF6", "#D3D4E8", "#B0B0D6", "#8A87C0", "#635FA4", "#413C82", "#241F5C"]
+chartSequentialColors = ["#EDEEF6", "#DCDDED", "#C7C8E2", "#B0B0D6", "#9795C7", "#7D7AB7", "#635FA4", "#4C488D", "#373275", "#241F5C"]
 
 # The sidebar frames the work; it does not compete with it.
 [theme.sidebar]
@@ -117,7 +119,7 @@ grayBackgroundColor = "#232131"
 grayTextColor = "#B9B9C4"
 
 chartCategoricalColors = ["#9C95DC", "#5FBE9B", "#C88A57", "#A294D8", "#6FA9C0", "#D9736B"]
-chartSequentialColors = ["#1D1A2C", "#2B2745", "#3C3760", "#4F497D", "#665F9B", "#8079BB", "#9C95DC"]
+chartSequentialColors = ["#1D1A2C", "#26233D", "#312C4E", "#3C3760", "#494373", "#575087", "#665F9B", "#7770B0", "#8982C6", "#9C95DC"]
 
 [theme.dark.sidebar]
 backgroundColor = "#100E1A"
