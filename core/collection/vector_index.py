@@ -183,6 +183,7 @@ class VectorIndexInfo:
 	name: str
 	index_type: str
 	vectorizer: Optional[str] = None
+	vectorizer_params: Dict[str, Any] = field(default_factory=dict)
 	is_named: bool = True
 	params: Dict[str, Any] = field(default_factory=dict)
 	sub_indexes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -247,12 +248,19 @@ def _index_type_of(vic: Any) -> str:
 	return type(vic).__name__.lstrip("_").replace("VectorIndexConfig", "").lower() or HNSW
 
 
-def _describe_one(name: str, vic: Any, vectorizer: Optional[str], is_named: bool) -> VectorIndexInfo:
+def _describe_one(
+	name: str,
+	vic: Any,
+	vectorizer: Optional[str],
+	is_named: bool,
+	vectorizer_params: Optional[Dict[str, Any]] = None,
+) -> VectorIndexInfo:
 	index_type = _index_type_of(vic)
 	info = VectorIndexInfo(
 		name=name,
 		index_type=index_type,
 		vectorizer=vectorizer,
+		vectorizer_params=vectorizer_params or {},
 		is_named=is_named,
 		params=_public_attrs(vic, skip=("quantizer", "hnsw", "flat")),
 	)
@@ -275,11 +283,24 @@ def _describe_one(name: str, vic: Any, vectorizer: Optional[str], is_named: bool
 	return info
 
 
-def _vectorizer_name(vectorizer_obj: Any) -> Optional[str]:
+def _vectorizer_details(vectorizer_obj: Any):
+	"""(module name, module params) for a vectorizer config object.
+
+	The params are the module's own settings — model, baseURL, source properties —
+	which is what the raw schema reports under ``moduleConfig``. Reading only the
+	name throws them away, so a collection vectorized by OpenAI looks identical to
+	one vectorized by anything else.
+	"""
 	if vectorizer_obj is None:
-		return None
+		return None, {}
 	inner = getattr(vectorizer_obj, "vectorizer", vectorizer_obj)
-	return str(getattr(inner, "value", inner))
+	name = str(getattr(inner, "value", inner))
+	params = {
+		k: v
+		for k, v in _public_attrs(vectorizer_obj, skip=("vectorizer",)).items()
+		if v is not None
+	}
+	return name, params
 
 
 def describe_vector_indexes(config: Any) -> List[VectorIndexInfo]:
@@ -298,12 +319,14 @@ def describe_vector_indexes(config: Any) -> List[VectorIndexInfo]:
 			vic = getattr(named_vec, "vector_index_config", None)
 			if vic is None:
 				continue
+			vec_name_str, vec_params = _vectorizer_details(getattr(named_vec, "vectorizer", None))
 			indexes.append(
 				_describe_one(
 					name=vec_name,
 					vic=vic,
-					vectorizer=_vectorizer_name(getattr(named_vec, "vectorizer", None)),
+					vectorizer=vec_name_str,
 					is_named=True,
+					vectorizer_params=vec_params,
 				)
 			)
 		return indexes
@@ -312,15 +335,19 @@ def describe_vector_indexes(config: Any) -> List[VectorIndexInfo]:
 	if vic is None:
 		return []
 
+	# The legacy layout splits the vectorizer in two: `vectorizer` names the module,
+	# `vectorizer_config` carries its settings.
+	name, params = _vectorizer_details(getattr(config, "vectorizer_config", None))
 	vectorizer = getattr(config, "vectorizer", None)
-	if vectorizer is None:
-		vectorizer = _vectorizer_name(getattr(config, "vectorizer_config", None))
+	if vectorizer is not None:
+		name = str(getattr(vectorizer, "value", vectorizer))
 	return [
 		_describe_one(
 			name="default",
 			vic=vic,
-			vectorizer=str(vectorizer) if vectorizer is not None else None,
+			vectorizer=name,
 			is_named=False,
+			vectorizer_params=params,
 		)
 	]
 
