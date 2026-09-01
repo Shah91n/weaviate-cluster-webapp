@@ -1,5 +1,7 @@
-import pandas as pd
+import dataclasses
 import logging
+
+import pandas as pd
 from core.collection.vector_index import HFRESH, describe_vector_indexes
 from core.connection.weaviate_connection_manager import get_weaviate_client
 
@@ -163,11 +165,126 @@ def fetch_collection_config(collection_name):
 		raise Exception(f"Failed to load configuration for '{collection_name}': {e}")
 
 
+# --------------------------------------------------------------------------
+# Config display
+#
+# The collection config is rendered reflectively rather than from a whitelist of
+# fields. Weaviate keeps adding config (object TTL, async replication tuning,
+# range filters) and every vectorizer / generative / reranker module writes its
+# own shape into moduleConfig, so a hand-written field list silently drops
+# whatever it has not been taught about — and on screen a dropped field is
+# indistinguishable from a setting the collection does not have.
+# --------------------------------------------------------------------------
+
+_SCALARS = (str, int, float, bool)
+
+# Vector layout is normalised by core/collection/vector_index.py, not here.
+_VECTOR_FIELDS = {
+	"vector_config",
+	"vector_index_config",
+	"vector_index_type",
+	"vectorizer",
+	"vectorizer_config",
+}
+
+_GENERAL_FIELDS = ("name", "description")
+
+# Properties get their own table via process_collection_properties().
+_SKIP_FIELDS = {"properties"}
+
+_SECTION_LABELS = {
+	"generative_config": "Generative Config",
+	"inverted_index_config": "Inverted Index Config",
+	"multi_tenancy_config": "Multi-Tenancy Config",
+	"object_ttl_config": "Object TTL Config",
+	"references": "References",
+	"replication_config": "Replication Config",
+	"reranker_config": "Reranker Config",
+	"sharding_config": "Sharding Config",
+}
+
+_PROPERTY_LABELS = {
+	"name": "Property Name",
+	"description": "Description",
+	"data_type": "Data Type",
+	"index_filterable": "Filterable",
+	"index_searchable": "Searchable",
+	"index_range_filters": "Range Filters",
+	"nested_properties": "Nested Properties",
+	"text_analyzer": "Text Analyzer",
+	"tokenization": "Tokenization",
+	"vectorizer": "Vectorizer",
+	"vectorizer_config": "Vectorizer Config",
+	"vectorizer_configs": "Vectorizer Configs",
+}
+
+
 def _display_value(value):
 	"""Render an SDK config value as a readable string."""
 	if value is None:
 		return "None"
 	return str(getattr(value, "value", value))
+
+
+def _humanize(key):
+	return str(key).replace("_", " ").title()
+
+
+def _config_fields(obj):
+	"""The public fields of an SDK config object, or None if it is a leaf value."""
+	if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+		return {f.name: getattr(obj, f.name, None) for f in dataclasses.fields(obj)}
+	return None
+
+
+def _flatten_config(value, prefix=""):
+	"""Flatten a config object, dict or list into a {dotted key: display value} map.
+
+	Nested module config (``model.baseURL``, ``async_config.max_workers``) keeps its
+	path in the key so a two-column table can show it without losing the structure.
+	"""
+	if isinstance(value, dict):
+		flat = {}
+		for key, item in value.items():
+			flat.update(_flatten_config(item, f"{prefix}.{key}" if prefix else str(key)))
+		return flat
+
+	fields = _config_fields(value)
+	if fields is not None:
+		flat = {}
+		for key, item in fields.items():
+			flat.update(_flatten_config(item, f"{prefix}.{key}" if prefix else key))
+		return flat
+
+	if isinstance(value, (list, tuple, set)):
+		items = list(value)
+		if not items:
+			return {prefix or "value": "[]"}
+		if all(isinstance(item, _SCALARS) for item in items):
+			return {prefix or "value": ", ".join(_display_value(item) for item in items)}
+		flat = {}
+		for i, item in enumerate(items):
+			flat.update(_flatten_config(item, f"{prefix}[{i}]"))
+		return flat
+
+	return {prefix or "value": _display_value(value)}
+
+
+def _section_value(value):
+	"""A section is a row list when the field holds config objects, a kv map otherwise.
+
+	An unset field becomes an empty section rather than a row reading "None", so the
+	page can label it as not configured.
+	"""
+	if value is None:
+		return {}
+	if isinstance(value, (list, tuple, set)):
+		items = list(value)
+		if not items:
+			return []
+		if all(_config_fields(item) is not None for item in items):
+			return [_flatten_config(item) for item in items]
+	return _flatten_config(value)
 
 
 def _as_display_dict(params):
@@ -180,6 +297,11 @@ def _describe_index_for_display(info):
 
 	if info.vectorizer:
 		sections["Vectorizer"] = info.vectorizer
+
+	# The module's own settings — model, baseURL, source properties — i.e. what the
+	# raw schema reports under moduleConfig for this vector.
+	if info.vectorizer_params:
+		sections["Vectorizer Config"] = _flatten_config(info.vectorizer_params)
 
 	index_params = _as_display_dict(info.params)
 	if index_params:
@@ -206,62 +328,30 @@ def _describe_index_for_display(info):
 
 # Process a SDK CollectionConfig object into a displayable sections dict.
 def process_collection_config(config):
+	"""Turn an SDK CollectionConfig into ordered, displayable sections.
+
+	Every field the SDK reports is rendered — known ones under a curated label, the
+	rest under a humanised version of their own name — so config this function has
+	never heard of still reaches the screen.
+	"""
 	logger.info("process_collection_config() called")
 	if config is None:
 		return {}
 
+	fields = _config_fields(config)
+	if fields is None:
+		return {}
+
 	result = {}
 
-	# Inverted Index Config
-	inv = getattr(config, "inverted_index_config", None)
-	if inv:
-		inv_dict = {}
-		cleanup = getattr(inv, "cleanup_interval_seconds", None)
-		if cleanup is not None:
-			inv_dict["cleanup_interval_seconds"] = cleanup
-		bm25 = getattr(inv, "bm25", None)
-		if bm25:
-			inv_dict["bm25_b"] = getattr(bm25, "b", None)
-			inv_dict["bm25_k1"] = getattr(bm25, "k1", None)
-		stopwords = getattr(inv, "stopwords", None)
-		if stopwords:
-			inv_dict["stopwords_preset"] = str(getattr(stopwords, "preset", ""))
-			additions = getattr(stopwords, "additions", [])
-			removals = getattr(stopwords, "removals", [])
-			if additions:
-				inv_dict["stopwords_additions"] = str(additions)
-			if removals:
-				inv_dict["stopwords_removals"] = str(removals)
-		result["Inverted Index Config"] = {k: v for k, v in inv_dict.items() if v is not None}
+	general = {key: _display_value(fields[key]) for key in _GENERAL_FIELDS if key in fields}
+	general["properties"] = len(fields.get("properties") or [])
+	result["General"] = general
 
-	# Multi-Tenancy Config
-	mt = getattr(config, "multi_tenancy_config", None)
-	if mt:
-		result["Multi-Tenancy Config"] = {
-			"enabled": getattr(mt, "enabled", False),
-			"auto_tenant_creation": getattr(mt, "auto_tenant_creation", False),
-			"auto_tenant_activation": getattr(mt, "auto_tenant_activation", False),
-		}
-
-	# Replication Config
-	repl = getattr(config, "replication_config", None)
-	if repl:
-		result["Replication Config"] = {
-			"factor": getattr(repl, "factor", 1),
-			"async_enabled": getattr(repl, "async_enabled", False),
-			"deletion_strategy": str(getattr(repl, "deletion_strategy", "")),
-		}
-
-	# Sharding Config
-	sharding = getattr(config, "sharding_config", None)
-	if sharding:
-		sharding_dict = {}
-		for attr in ("virtual_per_physical", "desired_count", "actual_count", "actual_virtual_count", "key", "strategy", "function"):
-			val = getattr(sharding, attr, None)
-			if val is not None:
-				sharding_dict[attr] = val
-		if sharding_dict:
-			result["Sharding Config"] = sharding_dict
+	for key, value in fields.items():
+		if key in _GENERAL_FIELDS or key in _SKIP_FIELDS or key in _VECTOR_FIELDS:
+			continue
+		result[_SECTION_LABELS.get(key, _humanize(key))] = _section_value(value)
 
 	# Vectors — covers named vectors and the legacy single vector alike, and reports the
 	# real index type (hnsw / flat / dynamic / hfresh) rather than assuming HNSW.
@@ -270,3 +360,40 @@ def process_collection_config(config):
 		result["Vectors"] = {info.name: _describe_index_for_display(info) for info in indexes}
 
 	return result
+
+
+# Process the properties of a SDK CollectionConfig into uniform display rows.
+def process_collection_properties(config):
+	"""One row per property, with every field the SDK reports for it.
+
+	Per-property module settings (``skip``, ``vectorize_property_name``, and the
+	per-named-vector variants) are flattened into their own columns rather than
+	being dropped. Columns are unioned across properties so the table stays square.
+	"""
+	logger.info("process_collection_properties() called")
+	rows = []
+
+	for prop in getattr(config, "properties", None) or []:
+		fields = _config_fields(prop)
+		if fields is None:
+			continue
+
+		row = {}
+		for key, value in fields.items():
+			label = _PROPERTY_LABELS.get(key, _humanize(key))
+			if key == "nested_properties":
+				row[label] = len(value or [])
+			elif isinstance(value, dict) or _config_fields(value) is not None:
+				for sub_key, sub_value in _flatten_config(value).items():
+					row[f"{label}: {sub_key}"] = sub_value
+			else:
+				row[label] = _display_value(value)
+		rows.append(row)
+
+	columns = []
+	for row in rows:
+		for key in row:
+			if key not in columns:
+				columns.append(key)
+
+	return [{column: row.get(column, "") for column in columns} for row in rows]

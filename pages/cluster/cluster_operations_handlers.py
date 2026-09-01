@@ -18,6 +18,7 @@ from core.collection.overview import (
 	get_schema,
 	list_collections,
 	process_collection_config,
+	process_collection_properties,
 )
 from core.connection.weaviate_connection_manager import get_weaviate_client
 from pages.utils import ui
@@ -154,20 +155,10 @@ def action_collection_schema():
 		"Properties": len(details.properties or []),
 	})
 
+	# Columns come from whatever the SDK reports per property — including each
+	# module's own per-property settings (skip, vectorize_property_name).
 	ui.section("Properties")
-	properties_data = [
-		{
-			"Property Name": prop.name or "None",
-			"Description": prop.description or "None",
-			"Data Type": str(prop.data_type) or "None",
-			"Searchable": prop.index_searchable,
-			"Filterable": prop.index_filterable,
-			"Tokenization": str(prop.tokenization) or "None",
-			"Vectorizer": prop.vectorizer or "None",
-		}
-		for prop in details.properties
-	]
-	ui.data_table(pd.DataFrame(properties_data), "No properties found.")
+	ui.data_table(process_collection_properties(details), "No properties found.")
 
 
 # Fetch and display cluster statistics (RAFT).
@@ -271,20 +262,37 @@ def action_collections_configuration():
 
 	processed_config = process_collection_config(config)
 	vectors = processed_config.pop("Vectors", {})
+	general = processed_config.pop("General", {})
 
 	ui.section(view_collection)
+	if general:
+		ui.kv_table(general)
+
+	# Sections the collection actually has get an expander each; the rest are named
+	# once at the end, so an unset field is still visible without three empty panels
+	# sitting in the middle of the list.
+	unset = [name for name, details in processed_config.items() if not details]
 	for section_name, details in processed_config.items():
+		if not details:
+			continue
 		with st.expander(section_name, expanded=False):
-			ui.kv_table(details)
+			# A section is a row list when the config field holds several objects
+			# (references, for instance) and a key/value map otherwise.
+			if isinstance(details, list):
+				ui.data_table(details, "— none —")
+			else:
+				ui.kv_table(details)
 
-	if not vectors:
+	if unset:
+		st.caption(f"Not configured: {', '.join(unset)}")
+
+	if vectors:
+		ui.section("Vectors", f"{len(vectors)} vector(s) configured")
+		for vector_name, sections in vectors.items():
+			with st.expander(f"{vector_name} — {sections.get('Vector Index Type', 'unknown')}", expanded=True):
+				_render_vector_sections(vector_name, sections)
+	else:
 		st.info("This collection has no vector configuration.")
-		return
-
-	ui.section("Vectors", f"{len(vectors)} vector(s) configured")
-	for vector_name, sections in vectors.items():
-		with st.expander(f"{vector_name} — {sections.get('Vector Index Type', 'unknown')}", expanded=True):
-			_render_vector_sections(vector_name, sections)
 
 
 # Diagnose schema configuration

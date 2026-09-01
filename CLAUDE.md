@@ -38,7 +38,8 @@ core/                                Business logic only — no Streamlit import
                                      process_statistics(), get_metadata()
   collection/
     overview.py                      aggregate_collections(), list_collections(), get_schema(),
-                                     fetch_collection_config(), process_collection_config()
+                                     fetch_collection_config(), process_collection_config(),
+                                     process_collection_properties()
     create.py                        get_supported_vectorizers(), validate_file_format(),
                                      check_vectorizer_keys(), create_collection(),
                                      batch_upload() [generator, server-side streaming],
@@ -170,6 +171,24 @@ Page-level keys are initialized in each page's `initialize_session_state()` or `
   is the loudest thing on screen. Fonts are system stacks: no webfont dependency
 - Destructive actions are confirmed with `st.dialog`, long operations use `st.status`
 
+### Collection Config Rendering
+`process_collection_config()` and `process_collection_properties()` in
+`core/collection/overview.py` are **reflective, not whitelists** — they walk the SDK's
+`_CollectionConfig` / `_Property` dataclasses and render every field they find, known ones
+under a curated label and the rest under a humanised version of their own name.
+
+- **Never add a hand-written field list back.** Weaviate keeps adding config (object TTL,
+  async replication tuning, range filters) and every vectorizer / generative / reranker
+  module writes its own shape into `moduleConfig`. A field the renderer has not been taught
+  about is, on screen, indistinguishable from a setting the collection does not have.
+- Module settings (`model`, `baseURL`, `sourceProperties`, per-property `skip` /
+  `vectorizePropertyName`) are carried through: `VectorIndexInfo.vectorizer_params` holds the
+  vector-level ones, and property-level ones become their own table columns.
+- Nested config is flattened to dotted keys (`model.baseURL`, `async_config.max_workers`)
+  so a two-column table can show it without losing the structure.
+- Fields the collection has not set render as empty sections; the page names them once in a
+  trailing "Not configured" caption rather than showing an empty expander per field.
+
 ### Vector Index Configuration
 All reads and writes of vector index config go through `core/collection/vector_index.py`.
 It normalises the two collection layouts (named vectors under `vector_config` vs. the legacy
@@ -254,7 +273,9 @@ MANAGE
 Seven buttons map to action functions:
 - **Aggregate Collections & Tenants** — object counts, empty collection/tenant detection
 - **Collection Properties** — schema + property table for a selected collection
-- **Collections Configuration** — full config (vectorizer, HNSW, PQ, replication) for a selected collection
+- **Collections Configuration** — every config field the SDK reports for a selected collection
+  (vectorizer + its module settings, index, quantizer, generative, reranker, replication,
+  object TTL, references)
 - **Nodes & Shards** — node details, shard table, shard-per-collection counts, read-only shard detection + one-click READY fix (⚠️ admin key required)
 - **Raft Statistics** — RAFT consensus state, peer network, synchronization sync status
 - **Metadata** — server version + enabled modules
