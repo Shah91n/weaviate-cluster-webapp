@@ -24,7 +24,7 @@ Connect via three modes — all with optional vectorizer API key injection:
 - **Cloud** — Weaviate Cloud cluster via URL + API key
 - **Auto-Connect via URL params** — `?endpoint=<URL>&api_key=<KEY>`
 
-Vectorizer integrations: OpenAI, Cohere (keys injected as request headers at connect time).
+Vectorizer integrations: OpenAI (key injected as a request header at connect time).
 
 ### Cluster Management
 - **Nodes & Shards** — View node details, shard info, set read-only shards to READY (⚠️ requires admin key)
@@ -42,7 +42,7 @@ Vectorizer integrations: OpenAI, Cohere (keys injected as request headers at con
 - Filter MT-only collections, view config, list tenants with activity states
 
 ### Object Operations
-- **Create** — Create collections (5 vectorizers + BYOV), batch upload from CSV/JSON (⚠️ admin key required)
+- **Create** — Create collections (text2vec_weaviate, text2vec_openai or BYOV), batch upload from CSV/JSON (⚠️ admin key required)
 - **Read** — Paginated object browser up to 1 000 objects, supports tenants, includes vectors
 - **Search** — Hybrid (BM25 + vector), keyword (BM25), and near-vector search with named-vector support, alpha tuning, and performance metrics
 - **Update** — Edit collection config (inverted index, replication, HNSW, PQ) and patch individual objects with type-aware field editors (⚠️ admin key required)
@@ -76,7 +76,8 @@ core/                          Business logic (no Streamlit imports)
 pages/                         Streamlit UI (one file per feature)
   cluster/                     Cluster dashboard action handlers
   utils/                       Navigation, page config, session helpers
-assets/                        Static files (logo)
+assets/                        Static files (logo, styles.css)
+.streamlit/config.toml         Light + dark theme (follows the OS appearance)
 ```
 
 **Core layer** (`core/`) contains only pure business logic — no `st.*` calls ever.  

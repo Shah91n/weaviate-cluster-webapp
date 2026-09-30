@@ -13,13 +13,22 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-# Status vocabulary shared by the diagnostics and config screens.
-STATUS_ICONS = {
-	"ok": "✅",
-	"warning": "⚠️",
-	"critical": "🔴",
-	"info": "ℹ️",
+# Status vocabulary shared by every screen: one colour and one icon per meaning.
+# The colours are the theme's status hues (.streamlit/config.toml), so a badge, a
+# callout and a chart all say the same thing in the same colour.
+STATUS_STYLES = {
+	"ok": ("green", ":material/check_circle:"),
+	"warning": ("orange", ":material/warning:"),
+	"critical": ("red", ":material/error:"),
+	"info": ("blue", ":material/info:"),
+	"neutral": ("gray", ":material/radio_button_unchecked:"),
 }
+
+
+def status_badge(status, label):
+	"""Markdown for a small coloured badge, e.g. for a sidebar or a table caption."""
+	colour, icon = STATUS_STYLES.get(status, STATUS_STYLES["info"])
+	return f":{colour}-badge[{icon} {label}]"
 
 
 def require_connection():
@@ -29,7 +38,8 @@ def require_connection():
 	a direct URL or a session that disconnects mid-flight.
 	"""
 	if not st.session_state.get("client_ready"):
-		st.warning("Connect to a Weaviate cluster using the sidebar to continue.")
+		# Not being connected yet is a prompt, not a problem — so info, not a warning.
+		st.info("Connect to a Weaviate cluster using the sidebar to continue.", icon=STATUS_STYLES["info"][1])
 		st.stop()
 
 
@@ -126,24 +136,26 @@ def data_table(data, empty_message="No data available.", column_config=None, hei
 
 
 def status_line(status, message):
-	"""One diagnostic line, prefixed with the icon for its status."""
-	st.markdown(f"{STATUS_ICONS.get(status, 'ℹ️')} {message}")
+	"""One diagnostic line, prefixed with the icon for its status in its colour."""
+	colour, icon = STATUS_STYLES.get(status, STATUS_STYLES["info"])
+	st.markdown(f":{colour}[{icon}] {message}")
 
 
 def status_callout(status, message):
 	"""A full-width callout using the Streamlit box that matches the status."""
+	icon = STATUS_STYLES.get(status, STATUS_STYLES["info"])[1]
 	if status == "ok":
-		st.success(message)
+		st.success(message, icon=icon)
 	elif status == "warning":
-		st.warning(message)
+		st.warning(message, icon=icon)
 	elif status == "critical":
-		st.error(message)
+		st.error(message, icon=icon)
 	else:
-		st.info(message)
+		st.info(message, icon=icon)
 
 
 def admin_warning(action="This operation"):
-	st.warning(f"⚠️ {action} requires an admin API key.")
+	st.warning(f"{action} requires an admin API key.", icon=STATUS_STYLES["warning"][1])
 
 
 def download_list(label, items, file_name, key):

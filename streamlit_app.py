@@ -76,9 +76,7 @@ if not st.session_state.auto_connect_attempted and "endpoint" in query_params an
 # Vectorizer keys
 if "openai_key" not in st.session_state:
     st.session_state.openai_key = ""
-if "cohere_key" not in st.session_state:
-    st.session_state.cohere_key = ""
-    
+
 # Active connection state
 if "active_endpoint" not in st.session_state:
     st.session_state.active_endpoint = ""
@@ -201,7 +199,6 @@ if not st.session_state.client_ready:
     # --------------------------------------------------------------------------
     st.sidebar.markdown("Add API keys for Model provider integrations (optional):")
     st.sidebar.text_input("OpenAI API Key", type="password", key="openai_key")
-    st.sidebar.text_input("Cohere API Key", type="password", key="cohere_key")
 
     # --------------------------------------------------------------------------
     # Connect/Disconnect Buttons
@@ -212,8 +209,6 @@ if not st.session_state.client_ready:
         vectorizer_integration_keys = {}
         if st.session_state.openai_key:
             vectorizer_integration_keys["X-OpenAI-Api-Key"] = st.session_state.openai_key
-        if st.session_state.cohere_key:
-            vectorizer_integration_keys["X-Cohere-Api-Key"] = st.session_state.cohere_key
 
         if st.session_state.use_local:
             success, details = initialize_weaviate_connection(
@@ -230,7 +225,6 @@ if not st.session_state.client_ready:
                 st.session_state.active_endpoint = details.get("endpoint", f"http://localhost:{st.session_state.local_http_port}")
                 st.session_state.active_api_key = st.session_state.local_api_key
                 st.session_state.active_openai_key = st.session_state.openai_key
-                st.session_state.active_cohere_key = st.session_state.cohere_key
                 st.rerun()
             else:
                 st.session_state.client_ready = False
@@ -255,7 +249,6 @@ if not st.session_state.client_ready:
                 st.session_state.active_endpoint = details.get("endpoint", f"{protocol}://{st.session_state.custom_http_host}:{st.session_state.custom_http_port}")
                 st.session_state.active_api_key = st.session_state.custom_api_key
                 st.session_state.active_openai_key = st.session_state.openai_key
-                st.session_state.active_cohere_key = st.session_state.cohere_key
                 st.rerun()
             else:
                 st.session_state.client_ready = False
@@ -280,7 +273,6 @@ if not st.session_state.client_ready:
                     st.session_state.active_endpoint = details.get("endpoint", cloud_endpoint)
                     st.session_state.active_api_key = st.session_state.cloud_api_key
                     st.session_state.active_openai_key = st.session_state.openai_key
-                    st.session_state.active_cohere_key = st.session_state.cohere_key
                     st.rerun()
                 else:
                     st.session_state.client_ready = False
@@ -289,11 +281,11 @@ else:
     if st.sidebar.button("Disconnect", width="stretch", type="primary"):
         success, message = disconnect_weaviate()
         if success:
-            st.toast('Session, states and cache cleared! Weaviate client disconnected successfully!', icon='🔴')
+            st.toast('Session, states and cache cleared! Weaviate client disconnected successfully!', icon=':material/link_off:')
             clear_session_state()
         else:
             st.sidebar.error(message)
-    st.sidebar.info("Disconnect Button does clear all session states and cache, and disconnect the Weaviate client to server if connected.")
+    st.sidebar.caption("Disconnect clears all session state and cache, and closes the Weaviate client.")
 
 # --------------------------------------------------------------------------
 # Connection status, then hand off to the active page.

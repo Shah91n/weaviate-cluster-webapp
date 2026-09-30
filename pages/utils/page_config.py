@@ -4,6 +4,7 @@ import streamlit as st
 from PIL import Image
 
 LOGO_PATH = os.path.join("assets", "weaviate-logo.png")
+STYLES_PATH = os.path.join("assets", "styles.css")
 
 PAGE_CAPTIONS = {
 	"Cluster": "Connect to a cluster and inspect nodes, shards, schema and health.",
@@ -28,6 +29,8 @@ def configure_app(layout="wide", initial_sidebar_state="expanded"):
 		initial_sidebar_state=initial_sidebar_state,
 		page_icon=Image.open(LOGO_PATH),
 	)
+	with open(STYLES_PATH, encoding="utf-8") as f:
+		st.html(f"<style>{f.read()}</style>")
 
 
 # Called at the top of each page body. The browser tab title comes from the page's

@@ -3,6 +3,7 @@ import logging
 import streamlit as st
 
 from core.connection.weaviate_connection_manager import get_weaviate_manager
+from pages.utils import ui
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +24,14 @@ def update_side_bar_labels():
 	manager = get_weaviate_manager()
 
 	# Sidebar status only — the main-area prompt is require_connection()'s job, and
-	# the router calls this on every page, so a warning here would double up.
+	# the router calls this on every page, so a warning here would double up. Not being
+	# connected yet is a neutral state, not an error, so it is grey rather than red.
 	if not manager.is_ready():
-		st.sidebar.error("Disconnected")
+		st.sidebar.markdown(ui.status_badge("neutral", "Not connected"))
 		return
 
 	endpoint = manager.get_endpoint()
-	st.sidebar.success("Connected")
+	st.sidebar.markdown(ui.status_badge("ok", "Connected"))
 	st.sidebar.caption("ENDPOINT")
 	st.sidebar.markdown(f"`{_shorten_endpoint(endpoint)}`", help=str(endpoint))
 	version = st.session_state.get("server_version")

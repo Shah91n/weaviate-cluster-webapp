@@ -1,0 +1,79 @@
+/*
+ * Visual polish on top of .streamlit/config.toml. Colours here are translucent
+ * (rgba) so the same rules read correctly on the light and the dark theme.
+ * Accent gradient: indigo -> violet -> sky. Status colours stay in config.toml.
+ */
+
+/* Thin brand bar across the top of the app */
+[data-testid="stHeader"] {
+	background: transparent;
+	border-top: 3px solid;
+	border-image: linear-gradient(90deg, #5850E6, #8B5CF6 50%, #1F9BD7) 1;
+}
+
+/* Page title: gradient ink */
+[data-testid="stMainBlockContainer"] h1 {
+	background: linear-gradient(90deg, #5850E6, #8B5CF6 55%, #1F9BD7);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	letter-spacing: -0.02em;
+	font-weight: 700;
+}
+
+/* Sidebar: faint accent wash from the top */
+[data-testid="stSidebar"] > div:first-child {
+	background-image: linear-gradient(180deg, rgba(88, 80, 230, 0.08), rgba(88, 80, 230, 0) 320px);
+}
+
+/* KPI tiles as cards */
+[data-testid="stMetric"] {
+	padding: 14px 16px;
+	border-radius: 12px;
+	border: 1px solid rgba(128, 132, 160, 0.22);
+	background: linear-gradient(145deg, rgba(88, 80, 230, 0.07), rgba(31, 155, 215, 0.03));
+	box-shadow: 0 1px 2px rgba(15, 20, 40, 0.06), 0 4px 14px rgba(15, 20, 40, 0.05);
+}
+[data-testid="stMetricLabel"] {
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	font-size: 0.75rem;
+	opacity: 0.75;
+}
+
+/* Expanders and bordered containers as soft cards */
+[data-testid="stExpander"] details,
+[data-testid="stVerticalBlockBorderWrapper"] {
+	border-radius: 12px;
+	box-shadow: 0 1px 2px rgba(15, 20, 40, 0.05);
+}
+
+/* Buttons: gentle lift on hover; primary gets the accent gradient */
+.stButton button,
+.stDownloadButton button,
+.stFormSubmitButton button {
+	transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+.stButton button:hover,
+.stDownloadButton button:hover,
+.stFormSubmitButton button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(88, 80, 230, 0.18);
+}
+[data-testid="stBaseButton-primary"] {
+	background: linear-gradient(135deg, #5850E6, #7C4FE0);
+	border: none;
+	color: #FFFFFF;
+}
+
+/* Callouts: rounded, with an accent stripe in the status colour */
+[data-testid="stAlertContainer"] {
+	border-radius: 10px;
+	border-left: 4px solid currentColor;
+}
+
+/* Tables sit in a rounded frame */
+[data-testid="stDataFrame"] {
+	border-radius: 10px;
+	overflow: hidden;
+}
