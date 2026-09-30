@@ -80,10 +80,12 @@ pages/                               Streamlit UI — one file per feature, no S
   utils/
     navigation.py                    build_navigation() — st.navigation, NAV_SECTIONS
     helper.py                        update_side_bar_labels(), clear_session_state()
-    page_config.py                   configure_app() [entrypoint only], page_header()
-    ui.py                            require_connection(), section(), metric_row(),
-                                     kv_table(), data_table(), status_line(),
-                                     status_callout(), admin_warning(), download_list()
+    page_config.py                   configure_app() [entrypoint only; injects assets/styles.css],
+                                     page_header()
+    ui.py                            STATUS_STYLES, require_connection(), load(), section(),
+                                     metric_row(), kv_table(), data_table(), status_badge(),
+                                     status_line(), status_callout(), admin_warning(),
+                                     download_list()
   cluster_dashboard.py               Cluster dashboard page (default page, served at /)
   agent.py                           QueryAgent natural-language Q&A UI
   backup.py                          Backup list page (auto-detected S3/GCS/Azure backend)
@@ -94,7 +96,7 @@ pages/                               Streamlit UI — one file per feature, no S
   read.py                            Paginated object browser (1 000 obj cap, 100/page)
   search.py                          Hybrid / keyword / vector search with named-vector support
   update.py                          Update object properties + collection config
-assets/                              Static files (weaviate-logo.png)
+assets/                              Static files (weaviate-logo.png, styles.css)
 ```
 
 ---
@@ -131,7 +133,7 @@ The manager also exposes `get_weaviate_manager()` when you need metadata (`get_e
 | Local | `weaviate.connect_to_local(port, grpc_port, ...)` |
 | Custom | `weaviate.connect_to_custom(http_host, http_port, grpc_host, grpc_port, http_secure, grpc_secure, ...)` |
 
-All modes accept optional vectorizer keys (`X-OpenAI-Api-Key`, `X-Cohere-Api-Key`) passed as `headers` at connect time.
+All modes accept an optional OpenAI vectorizer key (`X-OpenAI-Api-Key`) passed as `headers` at connect time.
 
 All connections use `skip_init_checks=True` and `Timeout(init=90, query=900, insert=900)`.
 
@@ -144,7 +146,7 @@ All connections use `skip_init_checks=True` and `Timeout(init=90, query=900, ins
 | `client_ready` | `bool` — connection established |
 | `active_endpoint` | Connected cluster URL |
 | `active_api_key` | Connected API key |
-| `active_openai_key` / `active_cohere_key` | Vectorizer keys in-use |
+| `active_openai_key` | OpenAI vectorizer key in use |
 | `server_version` | Weaviate server version string |
 | `use_local` / `use_custom` | Connection mode flags |
 | `auto_connect_attempted` | Guards single auto-connect from URL params |
@@ -165,10 +167,19 @@ Page-level keys are initialized in each page's `initialize_session_state()` or `
 - Headings, KPI rows, config tables and status lines come from `pages/utils/ui.py` — do not
   hand-roll `st.dataframe(df.astype(str))` or ad-hoc `st.markdown("###### ...")` headings
 - Theme lives in `.streamlit/config.toml`. The rule it encodes: **colour is a status
-  channel, not decoration** — chrome (sidebar, panels, borders) is achromatic, and
-  saturation is reserved for the active page, primary actions and health states.
-  Streamlit's stock yellow/blue alert colours are deliberately muted so a real warning
-  is the loudest thing on screen. Fonts are system stacks: no webfont dependency
+  channel, not decoration** — chrome (sidebar, panels, borders, text) is neutral slate,
+  one mid-indigo (`#5850E6`, `#8C8FF5` in dark) marks actions and the active page, and
+  each status has one distinct hue: green = ok, amber/orange = warning, red = critical, sky = info,
+  grey = neutral / no state. Fonts: Inter + JetBrains Mono (Google Fonts)
+- Visual polish (gradient title/top bar, metric cards, button hover) lives in
+  `assets/styles.css`, injected once by `configure_app()`. Use translucent `rgba` there so
+  one rule works in both light and dark
+- Both modes are mid-tone on purpose: light is off-white (`#F4F5F7`), not stark white;
+  dark (`[theme.dark]`, picked automatically from the OS appearance) is a lifted charcoal
+  (`#262A32`), not near-black. Status boxes use low-saturation tints with same-hue text
+- Status colour + icon come from `ui.STATUS_STYLES`; use `ui.status_badge()`,
+  `ui.status_line()` or `ui.status_callout()` instead of hand-picked emoji or colours.
+  A state that is not a problem (e.g. "not connected yet") is `neutral`, never red
 - Destructive actions are confirmed with `st.dialog`, long operations use `st.status`
 
 ### Collection Config Rendering
@@ -282,7 +293,7 @@ Seven buttons map to action functions:
 - **Diagnose** — shard consistency check + per-collection compression/replication diagnostics with CSV export
 
 ### Create (`pages/create.py` / `core/collection/create.py`)
-- Supported vectorizers: `text2vec_weaviate`, `text2vec_openai`, `text2vec_cohere`, `BYOV`
+- Supported vectorizers: `text2vec_weaviate`, `text2vec_openai`, `BYOV`
 - Collections are created with `replication_config=Configure.replication(3)` by default
 - Batch upload accepts CSV or JSON; property keys are sanitized (non-alphanumeric → `_`)
 - UUIDs are deterministic via `generate_uuid5(obj)`

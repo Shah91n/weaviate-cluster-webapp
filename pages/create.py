@@ -37,8 +37,6 @@ def create_collection_form():
 		# Show warnings for missing API keys
 		if selected_vectorizer == "text2vec_openai" and not st.session_state.get("openai_key"):
 			st.warning("⚠️ OpenAI API key is required. Please reconnect with the key or select BYOV.")
-		elif selected_vectorizer == "text2vec_cohere" and not st.session_state.get("cohere_key"):
-			st.warning("⚠️ Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV.")
 
 		# File upload
 		uploaded_file = st.file_uploader(
@@ -66,8 +64,6 @@ def handle_form_submission(collection_name, selected_vectorizer, uploaded_file):
 	integration_keys = {}
 	if st.session_state.get("openai_key"):
 		integration_keys["X-OpenAI-Api-Key"] = st.session_state.openai_key
-	if st.session_state.get("cohere_key"):
-		integration_keys["X-Cohere-Api-Key"] = st.session_state.cohere_key
 
 	success, message = create_collection(
 		collection_name,

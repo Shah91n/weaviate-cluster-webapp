@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def get_supported_vectorizers() -> List[str]:
 	logger.info("get_supported_vectorizers() called")
-	return ["text2vec_weaviate", "text2vec_openai", "text2vec_cohere", "BYOV"]
+	return ["text2vec_weaviate", "text2vec_openai", "BYOV"]
 
 # Validate file format
 def validate_file_format(file_content: str, file_type: str) -> tuple[bool, str, Optional[List[Dict[str, Any]]]]:
@@ -51,8 +51,6 @@ def check_vectorizer_keys(vectorizer: str, integration_keys: Optional[Dict[str, 
 	integration_keys = integration_keys or {}
 	if vectorizer == "text2vec_openai" and "X-OpenAI-Api-Key" not in integration_keys:
 		return False, "OpenAI API key is required. Please reconnect with the key or select BYOV."
-	elif vectorizer == "text2vec_cohere" and "X-Cohere-Api-Key" not in integration_keys:
-		return False, "Cohere API key is required for text2vec_cohere. Please reconnect with the key or select BYOV."
 	return True, ""
 
 # Create a new collection
@@ -78,8 +76,6 @@ def create_collection(
 			vector_config = Configure.Vectors.text2vec_weaviate()
 		elif vectorizer == "text2vec_openai":
 			vector_config = Configure.Vectors.text2vec_openai()
-		elif vectorizer == "text2vec_cohere":
-			vector_config = Configure.Vectors.text2vec_cohere()
 		elif vectorizer == "BYOV":
 			vector_config = Configure.Vectors.self_provided()
 		# Create collection
