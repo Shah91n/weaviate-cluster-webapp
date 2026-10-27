@@ -9,11 +9,7 @@ A lightweight Streamlit web app built for developers who need a quick, visual wa
 
 Use it to look up data, browse collections, diagnose schema health, inspect cluster state, and understand how your Weaviate instance is configured. It covers the basics well: general data lookup, collection analysis, replication and compression checks, RBAC inspection, and multi-tenancy browsing — all without writing a single query.
 
-<a href="https://weaviatecluster.streamlit.app/">
-  Visit Weaviate Cluster WebApp (It's recommended to run it locally, do not use it on Streamlit cloud)
-</a>
-
-<img width="1900" height="872" alt="image" src="https://github.com/user-attachments/assets/3ae3a762-a5d8-48dd-8253-5bf3a30945f5" />
+<img width="1903" height="910" alt="image" src="https://github.com/user-attachments/assets/67cf8b80-0101-4425-9922-ae9d43996fa4" />
 
 ## Features
 
