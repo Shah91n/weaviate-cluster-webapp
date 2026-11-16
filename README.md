@@ -1,8 +1,7 @@
 # Weaviate Cluster Operations
 
 [![Weaviate](https://img.shields.io/static/v1?label=for&message=Weaviate%20%E2%9D%A4&color=green&style=flat-square)](https://weaviate.io/)
-[![GitHub Repo stars](https://img.shields.io/github/stars/Shah91n/WeaviateDB-Cluster-WebApp?style=social)](https://github.com/Shah91n/WeaviateDB-Cluster-WebApp)
-[![Streamlit App](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://weaviatecluster.streamlit.app/)
+[![GitHub Repo stars](https://img.shields.io/github/stars/Shah91n/weaviate-cluster-webapp?style=social)](https://github.com/Shah91n/weaviate-cluster-webapp)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
 
 A lightweight Streamlit web app built for developers who need a quick, visual way to manage and understand their Weaviate cluster. It's designed for **development, staging, and testing environments** — not for production-scale use.
@@ -90,8 +89,8 @@ The singleton in `core/connection/weaviate_connection_manager.py` maintains one 
 
 ### Install & Run
 ```bash
-git clone https://github.com/Shah91n/WeaviateDB-Cluster-WebApp.git
-cd WeaviateDB-Cluster-WebApp
+git clone https://github.com/Shah91n/weaviate-cluster-webapp.git
+cd weaviate-cluster-webapp
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
